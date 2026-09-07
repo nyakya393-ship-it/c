@@ -1,477 +1,845 @@
-// =========================
-// Storage
-// InkBoard
-// IndexedDB
-// =========================
+/* =========================================================
+   InkBoard
+   js/storage.js
+   ========================================================= */
 
 (function () {
 
     "use strict";
 
 
-    // ========================================
-    // Database
-    // ========================================
+    /* =======================================================
+       DATABASE SETTINGS
+    ======================================================= */
 
     const DB_NAME = "InkBoardDB";
 
     const DB_VERSION = 1;
 
-    const STORE_NAME = "battles";
+    const BATTLE_STORE = "battles";
 
 
-    let dbPromise = null;
+    let dbInstance = null;
 
 
-    // ========================================
-    // Open Database
-    // ========================================
+    /* =======================================================
+       OPEN DATABASE
+    ======================================================= */
 
     function openDatabase() {
 
-        if (dbPromise) {
-            return dbPromise;
-        }
+        if (dbInstance) {
 
-
-        dbPromise = new Promise(function (resolve, reject) {
-
-            if (!window.indexedDB) {
-
-                reject(
-                    new Error(
-                        "このブラウザではIndexedDBを利用できません。"
-                    )
-                );
-
-                return;
-            }
-
-
-            const request =
-                window.indexedDB.open(
-                    DB_NAME,
-                    DB_VERSION
-                );
-
-
-            request.onupgradeneeded =
-                function (event) {
-
-                    const db =
-                        event.target.result;
-
-
-                    let store;
-
-
-                    if (
-                        !db.objectStoreNames.contains(
-                            STORE_NAME
-                        )
-                    ) {
-
-                        store =
-                            db.createObjectStore(
-                                STORE_NAME,
-                                {
-                                    keyPath: "id"
-                                }
-                            );
-
-                    } else {
-
-                        store =
-                            event.target.transaction.objectStore(
-                                STORE_NAME
-                            );
-
-                    }
-
-
-                    // 日付順に取得するためのインデックス
-                    if (
-                        !store.indexNames.contains(
-                            "playedTime"
-                        )
-                    ) {
-
-                        store.createIndex(
-                            "playedTime",
-                            "playedTime",
-                            {
-                                unique: false
-                            }
-                        );
-
-                    }
-
-
-                    // ルール検索用
-                    if (
-                        !store.indexNames.contains(
-                            "ruleCode"
-                        )
-                    ) {
-
-                        store.createIndex(
-                            "ruleCode",
-                            "rule.code",
-                            {
-                                unique: false
-                            }
-                        );
-
-                    }
-                };
-
-
-            request.onsuccess =
-                function () {
-
-                    const db =
-                        request.result;
-
-
-                    db.onversionchange =
-                        function () {
-
-                            db.close();
-
-                        };
-
-
-                    resolve(db);
-
-                };
-
-
-            request.onerror =
-                function () {
-
-                    reject(
-                        request.error ||
-                        new Error(
-                            "IndexedDBを開けませんでした。"
-                        )
-                    );
-
-                };
-
-        });
-
-
-        return dbPromise;
-    }
-
-
-    // ========================================
-    // Transaction Helper
-    // ========================================
-
-    async function transaction(
-        mode,
-        callback
-    ) {
-
-        const db =
-            await openDatabase();
-
-
-        return new Promise(function (
-            resolve,
-            reject
-        ) {
-
-            const tx =
-                db.transaction(
-                    STORE_NAME,
-                    mode
-                );
-
-
-            const store =
-                tx.objectStore(
-                    STORE_NAME
-                );
-
-
-            let result;
-
-
-            try {
-
-                result =
-                    callback(store);
-
-            } catch (error) {
-
-                reject(error);
-
-                return;
-            }
-
-
-            tx.oncomplete =
-                function () {
-
-                    resolve(result);
-
-                };
-
-
-            tx.onerror =
-                function () {
-
-                    reject(
-                        tx.error ||
-                        new Error(
-                            "データベース処理に失敗しました。"
-                        )
-                    );
-
-                };
-
-
-            tx.onabort =
-                function () {
-
-                    reject(
-                        tx.error ||
-                        new Error(
-                            "データベース処理が中断されました。"
-                        )
-                    );
-
-                };
-
-        });
-    }
-
-
-    // ========================================
-    // Add / Update Battle
-    // ========================================
-
-    function putBattle(battle) {
-
-        return transaction(
-            "readwrite",
-            function (store) {
-
-                if (
-                    !battle ||
-                    !battle.id
-                ) {
-
-                    throw new Error(
-                        "保存できないバトルデータです。"
-                    );
-
-                }
-
-
-                store.put(battle);
-
-            }
-        );
-    }
-
-
-    // ========================================
-    // Add Multiple Battles
-    // ========================================
-
-    async function putBattles(battles) {
-
-        if (!Array.isArray(battles)) {
-
-            throw new Error(
-                "保存するバトルデータが配列ではありません。"
+            return Promise.resolve(
+                dbInstance
             );
 
         }
 
 
-        if (battles.length === 0) {
-            return 0;
-        }
-
-
-        const validBattles =
-            battles.filter(function (battle) {
-
-                return battle &&
-                    battle.id;
-
-            });
-
-
-        if (validBattles.length === 0) {
-            return 0;
-        }
-
-
-        await transaction(
-            "readwrite",
-            function (store) {
-
-                validBattles.forEach(
-                    function (battle) {
-
-                        store.put(battle);
-
-                    }
-                );
-
-            }
-        );
-
-
-        return validBattles.length;
-    }
-
-
-    // ========================================
-    // Get One Battle
-    // ========================================
-
-    function getBattle(id) {
-
         return new Promise(
-            async function (resolve, reject) {
+            function (resolve, reject) {
 
-                try {
+                if (!window.indexedDB) {
 
-                    const db =
-                        await openDatabase();
+                    reject(
+                        new Error(
+                            "このブラウザではIndexedDBを利用できません。"
+                        )
+                    );
 
-
-                    const tx =
-                        db.transaction(
-                            STORE_NAME,
-                            "readonly"
-                        );
-
-
-                    const store =
-                        tx.objectStore(
-                            STORE_NAME
-                        );
-
-
-                    const request =
-                        store.get(id);
-
-
-                    request.onsuccess =
-                        function () {
-
-                            resolve(
-                                request.result || null
-                            );
-
-                        };
-
-
-                    request.onerror =
-                        function () {
-
-                            reject(
-                                request.error ||
-                                new Error(
-                                    "バトルデータを取得できませんでした。"
-                                )
-                            );
-
-                        };
-
-                } catch (error) {
-
-                    reject(error);
+                    return;
 
                 }
 
+
+                const request =
+                    indexedDB.open(
+                        DB_NAME,
+                        DB_VERSION
+                    );
+
+
+                request.onupgradeneeded =
+                    function (event) {
+
+                        const db =
+                            event.target.result;
+
+
+                        let store;
+
+
+                        if (
+                            !db.objectStoreNames.contains(
+                                BATTLE_STORE
+                            )
+                        ) {
+
+                            store =
+                                db.createObjectStore(
+                                    BATTLE_STORE,
+                                    {
+                                        keyPath: "id"
+                                    }
+                                );
+
+                        } else {
+
+                            store =
+                                event.target.transaction.objectStore(
+                                    BATTLE_STORE
+                                );
+
+                        }
+
+
+                        /*
+                         * 日時検索用インデックス
+                         */
+
+                        if (
+                            !store.indexNames.contains(
+                                "playedTime"
+                            )
+                        ) {
+
+                            store.createIndex(
+                                "playedTime",
+                                "playedTime",
+                                {
+                                    unique: false
+                                }
+                            );
+
+                        }
+
+
+                        /*
+                         * ルール検索用インデックス
+                         *
+                         * ネストした
+                         * rule.code はブラウザによって
+                         * IndexedDBの対応が不安定なため、
+                         * 実際の検索はgetAll後に行う。
+                         */
+
+                    };
+
+
+                request.onsuccess =
+                    function (event) {
+
+                        dbInstance =
+                            event.target.result;
+
+
+                        dbInstance.onclose =
+                            function () {
+
+                                dbInstance =
+                                    null;
+
+                            };
+
+
+                        resolve(
+                            dbInstance
+                        );
+
+                    };
+
+
+                request.onerror =
+                    function () {
+
+                        reject(
+                            request.error ||
+                            new Error(
+                                "IndexedDBを開けませんでした。"
+                            )
+                        );
+
+                    };
+
+
+                request.onblocked =
+                    function () {
+
+                        reject(
+                            new Error(
+                                "データベースが別の処理によって使用中です。"
+                            )
+                        );
+
+                    };
+
             }
         );
+
     }
 
 
-    // ========================================
-    // Get All Battles
-    // ========================================
+    /* =======================================================
+       TRANSACTION
+    ======================================================= */
 
-    function getAllBattles() {
+    function getStore(
+        mode
+    ) {
 
-        return new Promise(
-            async function (resolve, reject) {
+        return openDatabase()
+            .then(
+                function (db) {
 
-                try {
-
-                    const db =
-                        await openDatabase();
-
-
-                    const tx =
+                    const transaction =
                         db.transaction(
-                            STORE_NAME,
-                            "readonly"
+                            BATTLE_STORE,
+                            mode
                         );
 
 
                     const store =
-                        tx.objectStore(
-                            STORE_NAME
+                        transaction.objectStore(
+                            BATTLE_STORE
                         );
 
 
-                    const request =
-                        store.getAll();
+                    return {
+
+                        db:
+                            db,
+
+                        transaction:
+                            transaction,
+
+                        store:
+                            store
+
+                    };
+
+                }
+            );
+
+    }
 
 
-                    request.onsuccess =
-                        function () {
+    /* =======================================================
+       PUT ONE BATTLE
+    ======================================================= */
 
-                            const battles =
-                                Array.isArray(
-                                    request.result
-                                )
-                                    ? request.result
-                                    : [];
+    function putBattle(
+        battle
+    ) {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                if (
+                    !battle ||
+                    battle.id === undefined ||
+                    battle.id === null
+                ) {
+
+                    reject(
+                        new Error(
+                            "保存するバトルにIDがありません。"
+                        )
+                    );
+
+                    return;
+
+                }
 
 
-                            battles.sort(
-                                function (a, b) {
+                getStore(
+                    "readwrite"
+                )
+                    .then(
+                        function (context) {
 
-                                    const timeA =
-                                        new Date(
-                                            a.playedTime
-                                        ).getTime();
+                            const request =
+                                context.store.put(
+                                    battle
+                                );
 
 
-                                    const timeB =
-                                        new Date(
-                                            b.playedTime
-                                        ).getTime();
+                            request.onsuccess =
+                                function () {
 
+                                    resolve(
+                                        battle
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトルを保存できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       PUT MANY BATTLES
+    ======================================================= */
+
+    function putBattles(
+        battles
+    ) {
+
+        battles =
+            Array.isArray(battles)
+                ? battles
+                : [];
+
+
+        if (
+            battles.length === 0
+        ) {
+
+            return Promise.resolve(
+                {
+                    total: 0,
+                    saved: 0
+                }
+            );
+
+        }
+
+
+        return new Promise(
+            function (resolve, reject) {
+
+                getStore(
+                    "readwrite"
+                )
+                    .then(
+                        function (context) {
+
+                            let completed =
+                                0;
+
+
+                            const transaction =
+                                context.transaction;
+
+
+                            transaction.oncomplete =
+                                function () {
+
+                                    resolve(
+                                        {
+                                            total:
+                                                battles.length,
+
+                                            saved:
+                                                completed
+                                        }
+                                    );
+
+                                };
+
+
+                            transaction.onerror =
+                                function () {
+
+                                    reject(
+                                        transaction.error ||
+                                        new Error(
+                                            "バトルの保存中にエラーが発生しました。"
+                                        )
+                                    );
+
+                                };
+
+
+                            transaction.onabort =
+                                function () {
+
+                                    reject(
+                                        transaction.error ||
+                                        new Error(
+                                            "バトルの保存処理が中断されました。"
+                                        )
+                                    );
+
+                                };
+
+
+                            battles.forEach(
+                                function (battle) {
 
                                     if (
-                                        Number.isFinite(timeA) &&
-                                        Number.isFinite(timeB)
+                                        !battle ||
+                                        battle.id === undefined ||
+                                        battle.id === null
                                     ) {
 
-                                        return timeB - timeA;
+                                        return;
 
                                     }
 
 
-                                    return 0;
+                                    const request =
+                                        context.store.put(
+                                            battle
+                                        );
+
+
+                                    request.onsuccess =
+                                        function () {
+
+                                            completed++;
+
+                                        };
 
                                 }
                             );
 
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
 
-                            resolve(battles);
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       GET ONE BATTLE
+    ======================================================= */
+
+    function getBattle(
+        id
+    ) {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                if (
+                    id === undefined ||
+                    id === null
+                ) {
+
+                    resolve(
+                        null
+                    );
+
+                    return;
+
+                }
+
+
+                getStore(
+                    "readonly"
+                )
+                    .then(
+                        function (context) {
+
+                            const request =
+                                context.store.get(
+                                    String(id)
+                                );
+
+
+                            request.onsuccess =
+                                function () {
+
+                                    resolve(
+                                        request.result ||
+                                        null
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトルを取得できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       GET ALL BATTLES
+    ======================================================= */
+
+    function getAllBattles() {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                getStore(
+                    "readonly"
+                )
+                    .then(
+                        function (context) {
+
+                            const request =
+                                context.store.getAll();
+
+
+                            request.onsuccess =
+                                function () {
+
+                                    const battles =
+                                        Array.isArray(
+                                            request.result
+                                        )
+                                            ? request.result
+                                            : [];
+
+
+                                    battles.sort(
+                                        sortNewest
+                                    );
+
+
+                                    resolve(
+                                        battles
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトル履歴を取得できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       COUNT
+    ======================================================= */
+
+    function countBattles() {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                getStore(
+                    "readonly"
+                )
+                    .then(
+                        function (context) {
+
+                            const request =
+                                context.store.count();
+
+
+                            request.onsuccess =
+                                function () {
+
+                                    resolve(
+                                        request.result || 0
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトル数を取得できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       DELETE ONE
+    ======================================================= */
+
+    function deleteBattle(
+        id
+    ) {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                if (
+                    id === undefined ||
+                    id === null
+                ) {
+
+                    resolve(
+                        false
+                    );
+
+                    return;
+
+                }
+
+
+                getStore(
+                    "readwrite"
+                )
+                    .then(
+                        function (context) {
+
+                            const request =
+                                context.store.delete(
+                                    String(id)
+                                );
+
+
+                            request.onsuccess =
+                                function () {
+
+                                    resolve(
+                                        true
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトルを削除できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       CLEAR ALL
+    ======================================================= */
+
+    function clearBattles() {
+
+        return new Promise(
+            function (resolve, reject) {
+
+                getStore(
+                    "readwrite"
+                )
+                    .then(
+                        function (context) {
+
+                            const request =
+                                context.store.clear();
+
+
+                            request.onsuccess =
+                                function () {
+
+                                    resolve(
+                                        true
+                                    );
+
+                                };
+
+
+                            request.onerror =
+                                function () {
+
+                                    reject(
+                                        request.error ||
+                                        new Error(
+                                            "バトル履歴を削除できませんでした。"
+                                        )
+                                    );
+
+                                };
+
+                        }
+                    )
+                    .catch(
+                        reject
+                    );
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       IMPORT DATA
+    ======================================================= */
+
+    async function importData(
+        data
+    ) {
+
+        let records = [];
+
+
+        if (
+            Array.isArray(data)
+        ) {
+
+            records =
+                data;
+
+        } else if (
+            data &&
+            Array.isArray(data.records)
+        ) {
+
+            records =
+                data.records;
+
+        } else {
+
+            throw new Error(
+                "インポートするバトルデータがありません。"
+            );
+
+        }
+
+
+        /*
+         * IDが存在するものだけ保存
+         */
+
+        records =
+            records.filter(
+                function (battle) {
+
+                    return (
+                        battle &&
+                        battle.id !== undefined &&
+                        battle.id !== null
+                    );
+
+                }
+            );
+
+
+        if (
+            records.length === 0
+        ) {
+
+            throw new Error(
+                "保存できるバトルデータがありません。"
+            );
+
+        }
+
+
+        /*
+         * 既存IDを取得
+         */
+
+        const existing =
+            await getAllBattles();
+
+
+        const existingIds =
+            new Set(
+                existing.map(
+                    function (battle) {
+
+                        return String(
+                            battle.id
+                        );
+
+                    }
+                )
+            );
+
+
+        let added = 0;
+
+        let updated = 0;
+
+        let skipped = 0;
+
+
+        const unique =
+            new Map();
+
+
+      s);
 
                         };
 
