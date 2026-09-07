@@ -3,47 +3,27 @@
 // InkBoard
 // =========================
 
-"use strict";
-
-
-// ========================================
-// Cache
-// ========================================
-
-const CACHE_NAME =
-    "inkboard-cache-v1";
-
+const CACHE_NAME = "inkboard-v1";
 
 const APP_SHELL = [
-
     "./",
-
     "./index.html",
-
     "./style.css",
 
     "./js/app.js",
-
     "./js/importer.js",
-
     "./js/parser.js",
-
     "./js/storage.js",
-
     "./js/analyzer.js",
-
     "./js/battle.js",
-
     "./js/ui.js",
 
     "./manifest.webmanifest"
-
 ];
 
-
-// ========================================
+// =========================
 // Install
-// ========================================
+// =========================
 
 self.addEventListener(
     "install",
@@ -51,30 +31,24 @@ self.addEventListener(
 
         event.waitUntil(
 
-            caches.open(
-                CACHE_NAME
-            ).then(
-                function (cache) {
+            caches.open(CACHE_NAME)
+                .then(function (cache) {
 
-                    return cache.addAll(
-                        APP_SHELL
-                    );
+                    return cache.addAll(APP_SHELL);
 
-                }
-            )
+                })
+                .then(function () {
 
+                    return self.skipWaiting();
+
+                })
         );
-
-
-        self.skipWaiting();
-
     }
 );
 
-
-// ========================================
+// =========================
 // Activate
-// ========================================
+// =========================
 
 self.addEventListener(
     "activate",
@@ -82,8 +56,8 @@ self.addEventListener(
 
         event.waitUntil(
 
-            caches.keys().then(
-                function (cacheNames) {
+            caches.keys()
+                .then(function (cacheNames) {
 
                     return Promise.all(
 
@@ -91,42 +65,31 @@ self.addEventListener(
                             function (cacheName) {
 
                                 if (
-                                    cacheName !==
-                                    CACHE_NAME
+                                    cacheName !== CACHE_NAME
                                 ) {
-
                                     return caches.delete(
                                         cacheName
                                     );
-
                                 }
 
-
                                 return null;
-
                             }
                         )
-
                     );
 
-                }
-            ).then(
-                function () {
+                })
+                .then(function () {
 
                     return self.clients.claim();
 
-                }
-            )
-
+                })
         );
-
     }
 );
 
-
-// ========================================
+// =========================
 // Fetch
-// ========================================
+// =========================
 
 self.addEventListener(
     "fetch",
@@ -135,96 +98,64 @@ self.addEventListener(
         const request =
             event.request;
 
-
-        // GET以外はそのまま
-        if (
-            request.method !==
-            "GET"
-        ) {
-
+        // GET以外は処理しない
+        if (request.method !== "GET") {
             return;
-
         }
-
 
         const url =
-            new URL(
-                request.url
-            );
+            new URL(request.url);
 
-
-        // --------------------------------
-        // 外部サイト
-        // --------------------------------
-
+        // 外部CDNなどは通常のネットワークを使用
         if (
-            url.origin !==
-            self.location.origin
+            url.origin !== self.location.origin
         ) {
-
             return;
-
         }
-
 
         event.respondWith(
 
-            caches.match(
-                request
-            ).then(
-                function (cachedResponse) {
+            caches.match(request)
+                .then(function (cachedResponse) {
 
                     if (cachedResponse) {
 
                         return cachedResponse;
-
                     }
 
-
-                    return fetch(
-                        request
-                    ).then(
-                        function (networkResponse) {
+                    return fetch(request)
+                        .then(function (networkResponse) {
 
                             if (
                                 !networkResponse ||
                                 networkResponse.status !== 200 ||
-                                networkResponse.type !==
-                                    "basic"
+                                networkResponse.type !== "basic"
                             ) {
-
                                 return networkResponse;
-
                             }
-
 
                             const responseClone =
                                 networkResponse.clone();
 
-
-                            caches.open(
-                                CACHE_NAME
-                            ).then(
-                                function (cache) {
+                            caches.open(CACHE_NAME)
+                                .then(function (cache) {
 
                                     cache.put(
                                         request,
                                         responseClone
                                     );
-
-                                }
-                            );
-
+                                });
 
                             return networkResponse;
 
-                        }
-                    );
+                        })
+                        .catch(function () {
 
-                }
-            )
-
+                            return caches.match(
+                                "./index.html"
+                            );
+                        });
+                })
         );
-
     }
 );
