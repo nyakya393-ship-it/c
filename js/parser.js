@@ -1,451 +1,861 @@
-// =========================
-// Parser
-// Horagai Bay / Battle Data
-// =========================
+/* =========================================================
+   InkBoard
+   js/parser.js
+   ========================================================= */
 
 (function () {
 
     "use strict";
 
 
-    // ========================================
-    // Utility
-    // ========================================
+    /* =======================================================
+       UTILITY
+    ======================================================= */
 
-    function isObject(value) {
-        return value !== null &&
-            typeof value === "object" &&
-            !Array.isArray(value);
-    }
+    function valueOf(value, fallback) {
 
-
-    function isArray(value) {
-        return Array.isArray(value);
-    }
-
-
-    function safeNumber(value, fallback = 0) {
-        const number = Number(value);
-
-        return Number.isFinite(number)
-            ? number
-            : fallback;
-    }
-
-
-    function safeString(value, fallback = "") {
-        if (value === null || value === undefined) {
+        if (
+            value === undefined ||
+            value === null
+        ) {
             return fallback;
         }
 
-        return String(value);
+        return value;
+
     }
 
 
-    function clone(value) {
+    function stringValue(value, fallback) {
 
-        if (value === null || value === undefined) {
-            return value;
+        if (
+            value === undefined ||
+            value === null
+        ) {
+            return fallback || "";
+        }
+
+        return String(value);
+
+    }
+
+
+    function numberValue(value, fallback) {
+
+        const number =
+            Number(value);
+
+        if (Number.isFinite(number)) {
+            return number;
+        }
+
+        return valueOf(fallback, 0);
+
+    }
+
+
+    function booleanValue(value) {
+
+        return value === true;
+
+    }
+
+
+    function firstDefined() {
+
+        for (
+            let i = 0;
+            i < arguments.length;
+            i++
+        ) {
+
+            const value =
+                arguments[i];
+
+            if (
+                value !== undefined &&
+                value !== null &&
+                value !== ""
+            ) {
+
+                return value;
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+
+    function cloneRaw(value) {
+
+        if (
+            value === undefined ||
+            value === null
+        ) {
+            return null;
         }
 
         try {
-            return JSON.parse(JSON.stringify(value));
+
+            return JSON.parse(
+                JSON.stringify(value)
+            );
+
         } catch (error) {
+
             return value;
+
         }
+
     }
 
 
-    // ========================================
-    // Weapon
-    // ========================================
+    /* =======================================================
+       IMAGE
+    ======================================================= */
+
+    function parseImage(value) {
+
+        if (!value) {
+            return null;
+        }
+
+
+        if (typeof value === "string") {
+            return value;
+        }
+
+
+        if (typeof value === "object") {
+
+            return firstDefined(
+                value.url,
+                value.src,
+                value.imageUrl,
+                value.uri
+            );
+
+        }
+
+
+        return null;
+
+    }
+
+
+    /* =======================================================
+       WEAPON
+    ======================================================= */
 
     function parseWeapon(weapon) {
 
-        if (!isObject(weapon)) {
+        if (!weapon) {
+
             return {
-                id: "",
+
+                id: null,
+
                 name: "",
-                image: "",
-                image3d: "",
-                image2d: "",
-                thumbnail: "",
+
+                image: null,
+
+                image3d: null,
+
+                image2d: null,
+
+                thumbnail: null,
+
                 subWeapon: null,
+
                 specialWeapon: null,
-                raw: weapon || null
+
+                raw: null
+
             };
+
         }
 
 
-        const special = isObject(weapon.specialWeapon)
-            ? {
-                id: safeString(weapon.specialWeapon.id),
-                name: safeString(weapon.specialWeapon.name),
-                image: weapon.specialWeapon.image
-                    ? safeString(weapon.specialWeapon.image.url)
-                    : "",
-                raw: clone(weapon.specialWeapon)
-            }
-            : null;
+        const subWeapon =
+            weapon.subWeapon || null;
 
 
-        const sub = isObject(weapon.subWeapon)
-            ? {
-                id: safeString(weapon.subWeapon.id),
-                name: safeString(weapon.subWeapon.name),
-                image: weapon.subWeapon.image
-                    ? safeString(weapon.subWeapon.image.url)
-                    : "",
-                raw: clone(weapon.subWeapon)
-            }
-            : null;
+        const specialWeapon =
+            weapon.specialWeapon || null;
 
 
         return {
 
-            id: safeString(weapon.id),
+            id:
+                firstDefined(
+                    weapon.id,
+                    weapon.weaponId
+                ),
 
-            name: safeString(weapon.name),
+            name:
+                stringValue(
+                    weapon.name,
+                    ""
+                ),
 
-            image: weapon.image
-                ? safeString(weapon.image.url)
-                : "",
+            image:
+                parseImage(
+                    weapon.image
+                ),
 
-            image3d: weapon.image3d
-                ? safeString(weapon.image3d.url)
-                : "",
+            image3d:
+                parseImage(
+                    weapon.image3d
+                ),
 
-            image2d: weapon.image2d
-                ? safeString(weapon.image2d.url)
-                : "",
+            image2d:
+                parseImage(
+                    weapon.image2d
+                ),
 
-            thumbnail: weapon.thumbnail
-                ? safeString(weapon.thumbnail.url)
-                : "",
+            thumbnail:
+                parseImage(
+                    firstDefined(
+                        weapon.thumbnail,
+                        weapon.imageThumbnail
+                    )
+                ),
 
-            subWeapon: sub,
+            subWeapon: {
 
-            specialWeapon: special,
+                id:
+                    subWeapon
+                        ? firstDefined(
+                            subWeapon.id,
+                            subWeapon.weaponId
+                        )
+                        : null,
 
-            raw: clone(weapon)
+                name:
+                    subWeapon
+                        ? stringValue(
+                            subWeapon.name,
+                            ""
+                        )
+                        : "",
+
+                image:
+                    subWeapon
+                        ? parseImage(
+                            subWeapon.image
+                        )
+                        : null
+
+            },
+
+            specialWeapon: {
+
+                id:
+                    specialWeapon
+                        ? firstDefined(
+                            specialWeapon.id,
+                            specialWeapon.weaponId
+                        )
+                        : null,
+
+                name:
+                    specialWeapon
+                        ? stringValue(
+                            specialWeapon.name,
+                            ""
+                        )
+                        : "",
+
+                image:
+                    specialWeapon
+                        ? parseImage(
+                            specialWeapon.image
+                        )
+                        : null
+
+            },
+
+            raw:
+                cloneRaw(weapon)
+
         };
+
     }
 
 
-    // ========================================
-    // Player
-    // ========================================
+    /* =======================================================
+       PLAYER RESULT
+    ======================================================= */
+
+    function parsePlayerResult(result) {
+
+        result =
+            result || {};
+
+
+        return {
+
+            kill:
+                numberValue(
+                    result.kill,
+                    0
+                ),
+
+            death:
+                numberValue(
+                    result.death,
+                    0
+                ),
+
+            assist:
+                numberValue(
+                    result.assist,
+                    0
+                ),
+
+            special:
+                numberValue(
+                    result.special,
+                    0
+                ),
+
+            noroshiTry:
+                numberValue(
+                    result.noroshiTry,
+                    0
+                )
+
+        };
+
+    }
+
+
+    /* =======================================================
+       GEAR
+    ======================================================= */
+
+    function parseGear(gear) {
+
+        if (!gear) {
+            return null;
+        }
+
+
+        if (typeof gear === "string") {
+
+            return {
+
+                id: null,
+
+                name: gear,
+
+                image: null,
+
+                raw: gear
+
+            };
+
+        }
+
+
+        return {
+
+            id:
+                firstDefined(
+                    gear.id,
+                    gear.gearId
+                ),
+
+            name:
+                stringValue(
+                    firstDefined(
+                        gear.name,
+                        gear.gearName
+                    ),
+                    ""
+                ),
+
+            image:
+                parseImage(
+                    firstDefined(
+                        gear.image,
+                        gear.imageUrl,
+                        gear.image2d,
+                        gear.thumbnail
+                    )
+                ),
+
+            raw:
+                cloneRaw(gear)
+
+        };
+
+    }
+
+
+    /* =======================================================
+       NAMEPLATE
+    ======================================================= */
+
+    function parseNameplate(nameplate) {
+
+        if (!nameplate) {
+            return null;
+        }
+
+
+        if (typeof nameplate === "string") {
+
+            return {
+
+                id: null,
+
+                image: nameplate,
+
+                raw: nameplate
+
+            };
+
+        }
+
+
+        return {
+
+            id:
+                firstDefined(
+                    nameplate.id,
+                    nameplate.nameplateId
+                ),
+
+            image:
+                parseImage(
+                    firstDefined(
+                        nameplate.image,
+                        nameplate.imageUrl,
+                        nameplate.background,
+                        nameplate.backgroundImage,
+                        nameplate.thumbnail
+                    )
+                ),
+
+            raw:
+                cloneRaw(nameplate)
+
+        };
+
+    }
+
+
+    /* =======================================================
+       PLAYER
+    ======================================================= */
 
     function parsePlayer(player) {
 
-        if (!isObject(player)) {
-            return {
-                id: "",
-                name: "",
-                callSign: "",
-                byname: "",
-                isMyself: false,
-                species: "",
-                weapon: parseWeapon(null),
-                paint: 0,
-                result: {
-                    kill: 0,
-                    death: 0,
-                    assist: 0,
-                    special: 0,
-                    noroshiTry: 0
-                },
-                crown: null,
-                festDragonCert: null,
-                nameId: "",
-                nameplate: null,
-                gear: {
-                    headGear: null,
-                    clothingGear: null,
-                    shoesGear: null
-                },
-                raw: player || null
-            };
-        }
+        player =
+            player || {};
 
 
-        const result = isObject(player.result)
-            ? player.result
-            : {};
+        const result =
+            parsePlayerResult(
+                player.result
+            );
 
 
         return {
 
-            id: safeString(player.id),
+            id:
+                firstDefined(
+                    player.id,
+                    player.playerId,
+                    player.nameId
+                ),
 
-            name: safeString(player.name),
+            name:
+                stringValue(
+                    player.name,
+                    ""
+                ),
 
-            callSign: safeString(player.callSign),
+            callSign:
+                stringValue(
+                    player.callSign,
+                    ""
+                ),
 
-            byname: safeString(player.byname),
+            byname:
+                stringValue(
+                    player.byname,
+                    ""
+                ),
 
-            isMyself: player.isMyself === true,
+            isMyself:
+                booleanValue(
+                    player.isMyself
+                ),
 
-            species: safeString(player.species),
+            species:
+                stringValue(
+                    player.species,
+                    ""
+                ),
 
-            nameId: safeString(player.nameId),
+            nameId:
+                stringValue(
+                    player.nameId,
+                    ""
+                ),
 
-            nameplate: clone(player.nameplate),
+            nameplate:
+                parseNameplate(
+                    player.nameplate
+                ),
 
-            weapon: parseWeapon(player.weapon),
+            weapon:
+                parseWeapon(
+                    player.weapon
+                ),
 
-            paint: safeNumber(player.paint),
+            paint:
+                numberValue(
+                    player.paint,
+                    0
+                ),
 
-            result: {
+            result: result,
 
-                kill: safeNumber(result.kill),
+            crown:
+                valueOf(
+                    player.crown,
+                    null
+                ),
 
-                death: safeNumber(result.death),
+            festDragonCert:
+                valueOf(
+                    player.festDragonCert,
+                    null
+                ),
 
-                assist: safeNumber(result.assist),
+            headGear:
+                parseGear(
+                    player.headGear
+                ),
 
-                special: safeNumber(result.special),
+            clothingGear:
+                parseGear(
+                    player.clothingGear
+                ),
 
-                noroshiTry: safeNumber(result.noroshiTry)
-            },
+            shoesGear:
+                parseGear(
+                    player.shoesGear
+                ),
 
-            crown: clone(player.crown),
+            raw:
+                cloneRaw(player)
 
-            festDragonCert: clone(player.festDragonCert),
-
-            gear: {
-
-                headGear: clone(player.headGear),
-
-                clothingGear: clone(player.clothingGear),
-
-                shoesGear: clone(player.shoesGear)
-            },
-
-            raw: clone(player)
         };
+
     }
 
 
-    // ========================================
-    // Team Result
-    // ========================================
+    /* =======================================================
+       TEAM RESULT
+    ======================================================= */
 
     function parseTeamResult(result) {
 
-        if (!isObject(result)) {
-            return {
-                paintRatio: 0,
-                score: 0,
-                noroshi: 0,
-                raw: result || null
-            };
-        }
+        result =
+            result || {};
 
 
         return {
 
-            paintRatio: safeNumber(result.paintRatio),
+            paintRatio:
+                numberValue(
+                    result.paintRatio,
+                    0
+                ),
 
-            score: safeNumber(result.score),
+            score:
+                numberValue(
+                    result.score,
+                    0
+                ),
 
-            noroshi: safeNumber(result.noroshi),
+            noroshi:
+                numberValue(
+                    result.noroshi,
+                    0
+                ),
 
-            raw: clone(result)
+            raw:
+                cloneRaw(result)
+
         };
+
     }
 
 
-    // ========================================
-    // Team
-    // ========================================
+    /* =======================================================
+       TEAM
+    ======================================================= */
 
     function parseTeam(team) {
 
-        if (!isObject(team)) {
-            return {
-                color: null,
-                result: parseTeamResult(null),
-                tricolorRole: "",
-                festTeamName: "",
-                festUniformBonusRate: 0,
-                judgement: "",
-                players: [],
-                order: 0,
-                festStreakWinCount: 0,
-                festUniformName: "",
-                raw: team || null
-            };
-        }
+        team =
+            team || {};
 
 
-        const players = isArray(team.players)
-            ? team.players.map(parsePlayer)
-            : [];
+        const players =
+            Array.isArray(team.players)
+                ? team.players.map(
+                    parsePlayer
+                )
+                : [];
 
 
         return {
 
-            color: clone(team.color),
+            color:
+                cloneRaw(
+                    team.color
+                ),
 
-            result: parseTeamResult(team.result),
+            result:
+                parseTeamResult(
+                    team.result
+                ),
 
-            tricolorRole: safeString(team.tricolorRole),
+            tricolorRole:
+                stringValue(
+                    team.tricolorRole,
+                    ""
+                ),
 
-            festTeamName: safeString(team.festTeamName),
+            festTeamName:
+                stringValue(
+                    team.festTeamName,
+                    ""
+                ),
 
             festUniformBonusRate:
-                safeNumber(team.festUniformBonusRate),
+                numberValue(
+                    team.festUniformBonusRate,
+                    0
+                ),
 
-            judgement: safeString(team.judgement),
+            judgement:
+                stringValue(
+                    team.judgement,
+                    ""
+                ),
 
-            players: players,
+            players:
+                players,
 
-            order: safeNumber(team.order),
+            order:
+                numberValue(
+                    team.order,
+                    0
+                ),
 
             festStreakWinCount:
-                safeNumber(team.festStreakWinCount),
+                numberValue(
+                    team.festStreakWinCount,
+                    0
+                ),
 
             festUniformName:
-                safeString(team.festUniformName),
+                stringValue(
+                    team.festUniformName,
+                    ""
+                ),
 
-            raw: clone(team)
+            raw:
+                cloneRaw(team)
+
         };
+
     }
 
 
-    // ========================================
-    // Stage
-    // ========================================
+    /* =======================================================
+       STAGE
+    ======================================================= */
 
     function parseStage(stage) {
 
-        if (!isObject(stage)) {
-            return {
-                id: "",
-                name: "",
-                image: "",
-                raw: stage || null
-            };
-        }
+        stage =
+            stage || {};
 
 
         return {
 
-            id: safeString(stage.id),
+            id:
+                firstDefined(
+                    stage.id,
+                    stage.stageId
+                ),
 
-            name: safeString(stage.name),
+            name:
+                stringValue(
+                    stage.name,
+                    ""
+                ),
 
-            image: stage.image
-                ? safeString(stage.image.url)
-                : "",
+            image:
+                parseImage(
+                    stage.image
+                ),
 
-            raw: clone(stage)
+            raw:
+                cloneRaw(stage)
+
         };
+
     }
 
 
-    // ========================================
-    // Rule
-    // ========================================
+    /* =======================================================
+       RULE
+    ======================================================= */
 
     function parseRule(rule) {
 
-        if (!isObject(rule)) {
-            return {
-                id: "",
-                name: "",
-                code: "",
-                raw: rule || null
-            };
-        }
+        rule =
+            rule || {};
+
+
+        const code =
+            firstDefined(
+                rule.rule,
+                rule.code,
+                rule.ruleCode
+            );
 
 
         return {
 
-            id: safeString(rule.id),
+            id:
+                firstDefined(
+                    rule.id,
+                    null
+                ),
 
-            name: safeString(rule.name),
+            name:
+                stringValue(
+                    rule.name,
+                    ""
+                ),
 
-            code: safeString(rule.rule),
+            code:
+                stringValue(
+                    code,
+                    ""
+                ),
 
-            raw: clone(rule)
+            raw:
+                cloneRaw(rule)
+
         };
+
     }
 
 
-    // ========================================
-    // Mode
-    // ========================================
+    /* =======================================================
+       MODE
+    ======================================================= */
 
     function parseMode(mode) {
 
-        if (!isObject(mode)) {
-            return {
-                id: "",
-                mode: "",
-                name: "",
-                raw: mode || null
-            };
+        mode =
+            mode || {};
+
+
+        const value =
+            firstDefined(
+                mode.mode,
+                mode.code,
+                mode.modeCode
+            );
+
+
+        let name = "";
+
+
+        switch (
+            String(value || "").toUpperCase()
+        ) {
+
+            case "REGULAR":
+                name = "レギュラーマッチ";
+                break;
+
+            case "BANKARA":
+                name = "バンカラマッチ";
+                break;
+
+            case "X":
+                name = "Xマッチ";
+                break;
+
+            case "LEAGUE":
+                name = "リーグマッチ";
+                break;
+
+            case "FEST":
+                name = "フェスマッチ";
+                break;
+
+            default:
+                name =
+                    stringValue(
+                        mode.name,
+                        stringValue(
+                            value,
+                            ""
+                        )
+                    );
+
         }
-
-
-        const modeCode = safeString(mode.mode);
-
-
-        const modeNames = {
-
-            "REGULAR":
-                "ナワバリバトル",
-
-            "BANKARA":
-                "バンカラマッチ",
-
-            "X":
-                "Xマッチ",
-
-            "LEAGUE":
-                "イベントマッチ",
-
-            "FEST":
-                "フェスマッチ"
-        };
 
 
         return {
 
-            id: safeString(mode.id),
+            id:
+                firstDefined(
+                    mode.id,
+                    null
+                ),
 
-            mode: modeCode,
+            code:
+                stringValue(
+                    value,
+                    ""
+                ),
 
-            name: modeNames[modeCode] || modeCode,
+            name:
+                name,
 
-            raw: clone(mode)
+            raw:
+                cloneRaw(mode)
+
         };
+
     }
 
 
-    // ========================================
-    // Awards
-    // ========================================
-
-    function parseAwards(awards) {
-
-        if (!isArray(awards)) {
-            return [];
-        }
-
-        return clone(awards);
-    }
-
-
-    // ========================================
-    // Fest Match
-    // ========================================
+    /* =======================================================
+       FEST MATCH
+    ======================================================= */
 
     function parseFestMatch(festMatch) {
 
-        if (!isObject(festMatch)) {
+        if (!festMatch) {
             return null;
         }
 
@@ -453,19 +863,214 @@
         return {
 
             conchShell:
-                safeNumber(festMatch.conchShell),
+                numberValue(
+                    festMatch.conchShell,
+                    0
+                ),
 
             dragonMatchType:
-                safeString(festMatch.dragonMatchType),
+                stringValue(
+                    festMatch.dragonMatchType,
+                    ""
+                ),
 
             contribution:
-                safeNumber(festMatch.contribution),
+                numberValue(
+                    festMatch.contribution,
+                    0
+                ),
 
             jewel:
-                safeNumber(festMatch.jewel),
+                numberValue(
+                    festMatch.jewel,
+                    0
+                ),
 
             myFestPower:
-                safeNumber(festMatch.myFestPower),
+                numberValue(
+                    festMatch.myFestPower,
+                    0
+                ),
+
+            raw:
+                cloneRaw(festMatch)
+
+        };
+
+    }
+
+
+    /* =======================================================
+       TRICOLOR DETECTION
+    ======================================================= */
+
+    function detectTricolor(
+        root,
+        myTeam,
+        otherTeams
+    ) {
+
+        root =
+            root || {};
+
+        myTeam =
+            myTeam || {};
+
+        otherTeams =
+            Array.isArray(otherTeams)
+                ? otherTeams
+                : [];
+
+
+        const rule =
+            root.vsRule || {};
+
+
+        const ruleCode =
+            String(
+                firstDefined(
+                    rule.rule,
+                    rule.code,
+                    ""
+                )
+            ).toUpperCase();
+
+
+        const ruleName =
+            String(
+                rule.name || ""
+            );
+
+
+        if (
+            ruleCode === "TRI_COLOR" ||
+            ruleCode === "TRICOLOR" ||
+            ruleCode === "TRI_COLOR_BATTLE"
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            ruleName.includes("トリカラ")
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            otherTeams.length >= 2
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            myTeam.tricolorRole
+        ) {
+
+            return true;
+
+        }
+
+
+        for (
+            let i = 0;
+            i < otherTeams.length;
+            i++
+        ) {
+
+            if (
+                otherTeams[i] &&
+                otherTeams[i].tricolorRole
+            ) {
+
+                return true;
+
+            }
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* =======================================================
+       BATTLE
+    ======================================================= */
+
+    function parseBattle(detail) {
+
+        if (!detail) {
+            return null;
+        }
+
+
+        /*
+         * Horagai Bayでは
+         * vsHistoryDetail が1件のバトル本体。
+         */
+
+        const root =
+            detail.vsHistoryDetail ||
+            detail;
+
+
+        if (!root || typeof root !== "object") {
+            return null;
+        }
+
+
+        const myTeam =
+            parseTeam(
+                root.myTeam
+            );
+
+
+        const otherTeams =
+            Array.isArray(root.otherTeams)
+                ? root.otherTeams.map(
+                    parseTeam
+                )
+                : [];
+
+
+        const tricolor =
+            detectTricolor(
+                root,
+                myTeam,
+                otherTeams
+            );
+
+
+        const teams =
+            [
+                myTeam,
+                ...otherTeams
+            ].filter(function (team) {
+
+                return (
+                    team &&
+                    (
+                        team.players.length > 0 ||
+                        team.festTeamName ||
+                        team.tricolorRole ||
+                        team.result
+                    )
+                );
+
+            });
+
+
+        /*Number(festMatch.myFestPower),
 
             raw: clone(festMatch)
         };
