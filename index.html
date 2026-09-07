@@ -10,22 +10,19 @@
 
     <meta
         name="theme-color"
-        content="#111111"
+        content="#101114"
     >
 
     <meta
         name="description"
-        content="ホラガイベイのバトルデータを閲覧・分析するSplatoon 3向けWebアプリ"
+        content="Splatoon 3のバトル履歴・戦績・分析を確認できるWebアプリ"
     >
+
+    <title>InkBoard</title>
 
     <link
         rel="manifest"
         href="manifest.webmanifest"
-    >
-
-    <link
-        rel="stylesheet"
-        href="style.css"
     >
 
     <link
@@ -40,38 +37,42 @@
     >
 
     <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0"
         rel="stylesheet"
     >
 
-    <title>バトル</title>
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
 </head>
 
 <body>
 
 <div id="app">
 
-    <!-- =========================================
+    <!-- =========================
          HEADER
-    ========================================== -->
+    ========================== -->
 
     <header class="app-header">
 
-        <div class="header-title-area">
+        <div class="header-left">
 
             <button
                 id="backButton"
-                class="icon-button back-button"
+                class="icon-button header-back"
                 type="button"
+                data-action="back"
                 aria-label="戻る"
                 hidden
             >
-                <span class="material-symbols-rounded">
+                <span class="material-symbols-outlined">
                     arrow_back
                 </span>
             </button>
 
-            <h1 id="pageTitle">
+            <h1 id="headerTitle">
                 バトル
             </h1>
 
@@ -81,9 +82,10 @@
             id="settingsButton"
             class="icon-button"
             type="button"
+            data-action="settings"
             aria-label="設定"
         >
-            <span class="material-symbols-rounded">
+            <span class="material-symbols-outlined">
                 settings
             </span>
         </button>
@@ -91,171 +93,158 @@
     </header>
 
 
-    <!-- =========================================
+    <!-- =========================
          MAIN
-    ========================================== -->
+    ========================== -->
 
     <main id="mainContent">
 
-        <!-- =====================================
-             BATTLE LIST PAGE
-        ====================================== -->
+
+        <!-- =========================
+             BATTLE PAGE
+        ========================== -->
 
         <section
             id="battlePage"
-            class="page active-page"
-            aria-label="バトル一覧"
+            class="page"
+            data-page="battle"
         >
 
-            <!-- FILTER -->
+            <!-- フィルター -->
 
-            <div class="filter-section">
+            <div class="filter-area">
 
-                <div
-                    id="battleFilter"
-                    class="filter-tabs"
-                    role="tablist"
-                    aria-label="バトル絞り込み"
+                <button
+                    class="filter-button active"
+                    type="button"
+                    data-battle-filter="all"
                 >
+                    すべて
+                </button>
 
-                    <button
-                        class="filter-tab active"
-                        type="button"
-                        data-filter="all"
-                        role="tab"
-                        aria-selected="true"
-                    >
-                        すべて
-                    </button>
+                <button
+                    class="filter-button"
+                    type="button"
+                    data-battle-filter="rule"
+                >
+                    ルール
+                </button>
 
-                    <button
-                        class="filter-tab"
-                        type="button"
-                        data-filter="rule"
-                        role="tab"
-                        aria-selected="false"
-                    >
-                        ルール
-                    </button>
+                <button
+                    class="filter-button"
+                    type="button"
+                    data-battle-filter="mode"
+                >
+                    バトルの種類
+                </button>
 
-                    <button
-                        class="filter-tab"
-                        type="button"
-                        data-filter="mode"
-                        role="tab"
-                        aria-selected="false"
-                    >
-                        バトルの種類
-                    </button>
-
-                    <button
-                        class="filter-tab"
-                        type="button"
-                        data-filter="weapon"
-                        role="tab"
-                        aria-selected="false"
-                    >
-                        ブキ
-                    </button>
-
-                </div>
+                <button
+                    class="filter-button"
+                    type="button"
+                    data-battle-filter="weapon"
+                >
+                    ブキ
+                </button>
 
             </div>
 
 
-            <!-- BATTLE SUMMARY -->
+            <!-- 戦績サマリー -->
 
             <section
                 id="battleSummary"
                 class="battle-summary"
-                aria-label="バトル集計"
+                aria-label="戦績"
             >
 
-                <div class="summary-main">
-
-                    <span
-                        id="winRate"
-                        class="summary-value"
-                    >
-                        0%
-                    </span>
+                <div class="summary-item">
 
                     <span class="summary-label">
                         勝率
                     </span>
 
+                    <strong
+                        id="summaryWinRate"
+                        class="summary-value"
+                    >
+                        --%
+                    </strong>
+
                 </div>
+
 
                 <div class="summary-item">
 
-                    <span
-                        id="winCount"
-                        class="summary-number"
-                    >
-                        0
-                    </span>
-
-                    <span class="summary-text">
+                    <span class="summary-label">
                         勝
                     </span>
 
+                    <strong
+                        id="summaryWins"
+                        class="summary-value"
+                    >
+                        0
+                    </strong>
+
                 </div>
+
 
                 <div class="summary-item">
 
-                    <span
-                        id="loseCount"
-                        class="summary-number"
-                    >
-                        0
-                    </span>
-
-                    <span class="summary-text">
+                    <span class="summary-label">
                         敗
                     </span>
 
+                    <strong
+                        id="summaryLoses"
+                        class="summary-value"
+                    >
+                        0
+                    </strong>
+
                 </div>
+
 
                 <div class="summary-item">
 
-                    <span
-                        id="battleCount"
-                        class="summary-number"
-                    >
-                        0
-                    </span>
-
-                    <span class="summary-text">
+                    <span class="summary-label">
                         戦
                     </span>
+
+                    <strong
+                        id="summaryBattles"
+                        class="summary-value"
+                    >
+                        0
+                    </strong>
 
                 </div>
 
             </section>
 
 
-            <!-- BATTLE TABLE -->
+            <!-- バトル一覧 -->
 
             <section
-                class="battle-table-section"
+                class="battle-history"
                 aria-label="バトル履歴"
             >
 
                 <div class="battle-table-header">
 
-                    <span class="result-column">
+                    <span>
                         結果
                     </span>
 
-                    <span class="rule-column">
+                    <span>
                         ルール
                     </span>
 
-                    <span class="stage-column">
+                    <span>
                         ステージ
                     </span>
 
-                    <span class="weapon-column">
+                    <span>
                         ブキ
                     </span>
 
@@ -266,24 +255,18 @@
                     id="battleList"
                     class="battle-list"
                 >
-
-                    <!--
-                        バトルデータは
-                        js/ui.js から生成する
-                    -->
-
                 </div>
 
 
-                <!-- EMPTY -->
+                <!-- データなし -->
 
                 <div
-                    id="emptyBattle"
+                    id="battleEmpty"
                     class="empty-state"
                     hidden
                 >
 
-                    <span class="material-symbols-rounded empty-icon">
+                    <span class="material-symbols-outlined empty-icon">
                         sports_esports
                     </span>
 
@@ -292,15 +275,19 @@
                     </h2>
 
                     <p>
-                        ホラガイベイから出力した
-                        データをインポートしてください。
+                        ホラガイベイから書き出した<br>
+                        JSONまたはZIPを読み込んでください。
                     </p>
 
                     <button
-                        id="emptyImportButton"
                         class="primary-button"
                         type="button"
+                        data-action="import"
                     >
+                        <span class="material-symbols-outlined">
+                            upload_file
+                        </span>
+
                         データをインポート
                     </button>
 
@@ -311,14 +298,14 @@
         </section>
 
 
-        <!-- =====================================
+        <!-- =========================
              BATTLE DETAIL PAGE
-        ====================================== -->
+        ========================== -->
 
         <section
             id="battleDetailPage"
             class="page"
-            aria-label="バトル詳細"
+            data-page="battleDetail"
             hidden
         >
 
@@ -326,32 +313,26 @@
                 id="battleDetail"
                 class="battle-detail"
             >
-
-                <!--
-                    選択したバトルの詳細は
-                    js/battle.js から生成する
-                -->
-
             </div>
 
         </section>
 
 
-        <!-- =====================================
+        <!-- =========================
              SALMON RUN PAGE
-        ====================================== -->
+        ========================== -->
 
         <section
             id="salmonPage"
             class="page"
-            aria-label="サーモンラン"
+            data-page="salmon"
             hidden
         >
 
-            <div class="coming-soon">
+            <div class="placeholder-page">
 
-                <span class="material-symbols-rounded">
-                    water
+                <span class="material-symbols-outlined">
+                    waves
                 </span>
 
                 <h2>
@@ -359,7 +340,7 @@
                 </h2>
 
                 <p>
-                    サーモンランデータに対応予定
+                    サーモンラン機能は準備中です。
                 </p>
 
             </div>
@@ -367,21 +348,21 @@
         </section>
 
 
-        <!-- =====================================
+        <!-- =========================
              STATISTICS PAGE
-        ====================================== -->
+        ========================== -->
 
         <section
             id="statisticsPage"
             class="page"
-            aria-label="統計"
+            data-page="statistics"
             hidden
         >
 
-            <div class="coming-soon">
+            <div class="placeholder-page">
 
-                <span class="material-symbols-rounded">
-                    monitoring
+                <span class="material-symbols-outlined">
+                    analytics
                 </span>
 
                 <h2>
@@ -389,7 +370,7 @@
                 </h2>
 
                 <p>
-                    バトルデータの統計・分析
+                    戦績分析機能は準備中です。
                 </p>
 
             </div>
@@ -397,51 +378,271 @@
         </section>
 
 
-        <!-- =====================================
+        <!-- =========================
              SETTINGS PAGE
-        ====================================== -->
+        ========================== -->
 
         <section
             id="settingsPage"
             class="page"
-            aria-label="設定"
+            data-page="settings"
             hidden
         >
 
-            <div class="settings-content">
+            <div class="settings-page">
 
-                <h2>
-                    設定
-                </h2>
+                <section class="settings-section">
 
-                <button
-                    id="importButton"
-                    class="settings-item"
-                    type="button"
-                >
+                    <h2>
+                        データ
+                    </h2>
 
-                    <span class="material-symbols-rounded">
-                        upload_file
-                    </span>
 
-                    <span>
-                        バトルデータをインポート
-                    </span>
+                    <button
+                        id="settingsImportButton"
+                        class="settings-button"
+                        type="button"
+                        data-action="import"
+                    >
 
-                </button>
+                        <span class="material-symbols-outlined">
+                            upload_file
+                        </span>
 
-                <button
-                    id="exportButton"
-                    class="settings-item"
-                    type="button"
-                >
+                        <span class="settings-button-text">
 
-                    <span class="material-symbols-rounded">
-                        download
-                    </span>
+                            <strong>
+                                データをインポート
+                            </strong>
 
-                    <span>
-                        データをバックアップ
+                            <small>
+                                JSON / ZIP
+                            </small>
+
+                        </span>
+
+                        <span class="material-symbols-outlined settings-arrow">
+                            chevron_right
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        id="exportButton"
+                        class="settings-button"
+                        type="button"
+                    >
+
+                        <span class="material-symbols-outlined">
+                            download
+                        </span>
+
+                        <span class="settings-button-text">
+
+                            <strong>
+                                データを書き出す
+                            </strong>
+
+                            <small>
+                                JSONバックアップ
+                            </small>
+
+                        </span>
+
+                        <span class="material-symbols-outlined settings-arrow">
+                            chevron_right
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        id="deleteAllButton"
+                        class="settings-button danger"
+                        type="button"
+                    >
+
+                        <span class="material-symbols-outlined">
+                            delete
+                        </span>
+
+                        <span class="settings-button-text">
+
+                            <strong>
+                                すべてのデータを削除
+                            </strong>
+
+                            <small>
+                                保存されている戦績を削除します
+                            </small>
+
+                        </span>
+
+                        <span class="material-symbols-outlined settings-arrow">
+                            chevron_right
+                        </span>
+
+                    </button>
+
+                </section>
+
+
+                <section class="settings-section">
+
+                    <h2>
+                        InkBoard
+                    </h2>
+
+                    <div class="settings-info">
+
+                        <span>
+                            バージョン
+                        </span>
+
+                        <strong>
+                            1.0.0
+                        </strong>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =========================
+         FILE INPUT
+    ========================== -->
+
+    <input
+        id="fileInput"
+        type="file"
+        accept=".json,.zip,application/json,application/zip"
+        hidden
+    >
+
+
+    <!-- =========================
+         BOTTOM NAVIGATION
+    ========================== -->
+
+    <nav
+        id="bottomNav"
+        class="bottom-nav"
+        aria-label="メインナビゲーション"
+    >
+
+        <button
+            class="nav-item active"
+            type="button"
+            data-page="battle"
+        >
+
+            <span class="material-symbols-outlined">
+                sports_esports
+            </span>
+
+            <span>
+                バトル
+            </span>
+
+        </button>
+
+
+        <button
+            class="nav-item"
+            type="button"
+            data-page="salmon"
+        >
+
+            <span class="material-symbols-outlined">
+                waves
+            </span>
+
+            <span>
+                サーモンラン
+            </span>
+
+        </button>
+
+
+        <button
+            class="nav-item"
+            type="button"
+            data-page="statistics"
+        >
+
+            <span class="material-symbols-outlined">
+                analytics
+            </span>
+
+            <span>
+                統計
+            </span>
+
+        </button>
+
+    </nav>
+
+
+    <!-- =========================
+         TOAST
+    ========================== -->
+
+    <div
+        id="toast"
+        class="toast"
+        role="status"
+        aria-live="polite"
+        hidden
+    >
+    </div>
+
+
+    <!-- =========================
+         LOADING
+    ========================== -->
+
+    <div
+        id="loading"
+        class="loading-overlay"
+        hidden
+    >
+
+        <div class="loading-box">
+
+            <div class="loading-spinner"></div>
+
+            <p id="loadingText">
+                読み込み中...
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================
+     JAVASCRIPT
+========================== -->
+
+<script src="js/storage.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/analyzer.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>       データをバックアップ
                     </span>
 
                 </button>
