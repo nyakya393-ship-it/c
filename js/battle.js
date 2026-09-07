@@ -1,657 +1,892 @@
-/* =========================================================
-   InkBoard
-   js/battle.js
-   ========================================================= */
+// =========================
+// Battle System
+// InkBoard
+// =========================
 
 (function () {
-
     "use strict";
 
-
-    /* =======================================================
-       STATE
-    ======================================================= */
-
-    const State = {
-
-        battles: [],
-
-        filteredBattles: [],
-
-        currentBattle: null,
-
-        currentFilter: "all",
-
-        initialized: false
-
-    };
-
-
-    /* =======================================================
-       UTILITY
-    ======================================================= */
-
-    function el(
-        tag,
-        className,
-        text
-    ) {
-
-        const element =
-            document.createElement(
-                tag
-            );
-
-
-        if (className) {
-
-            element.className =
-                className;
-
-        }
-
-
-        if (
-            text !== undefined &&
-            text !== null
-        ) {
-
-            element.textContent =
-                text;
-
-        }
-
-
-        return element;
-
-    }
-
-
-    function safeString(
-        value,
-        fallback
-    ) {
-
-        if (
-            value === undefined ||
-            value === null ||
-            value === ""
-        ) {
-
-            return fallback || "";
-
-        }
-
-
-        return String(value);
-
-    }
-
-
-    function numberValue(
-        value
-    ) {
-
-        const number =
-            Number(value);
-
-
-        return Number.isFinite(
-            number
-        )
-            ? number
-            : 0;
-
-    }
-
-
-    function formatNumber(
-        value
-    ) {
-
-        return numberValue(
-            value
-        ).toLocaleString(
-            "ja-JP"
-        );
-
-    }
-
-
-    function formatPercent(
-        value
-    ) {
-
-        return (
-            numberValue(value)
-                .toFixed(1)
-        ) + "%";
-
-    }
-
-
-    function formatDate(
-        value
-    ) {
-
-        if (!value) {
-
-            return "日時不明";
-
-        }
-
-
-        const date =
-            new Date(
-                value
-            );
-
-
-        if (
-            Number.isNaN(
-                date.getTime()
-            )
-        ) {
-
-            return safeString(
-                value,
-                "日時不明"
-            );
-
-        }
-
-
-        return (
-            date.getFullYear() +
-            "/" +
-            String(
-                date.getMonth() + 1
-            ).padStart(
-                2,
-                "0"
-            ) +
-            "/" +
-            String(
-                date.getDate()
-            ).padStart(
-                2,
-                "0"
-            ) +
-            " " +
-            String(
-                date.getHours()
-            ).padStart(
-                2,
-                "0"
-            ) +
-            ":" +
-            String(
-                date.getMinutes()
-            ).padStart(
-                2,
-                "0"
-            )
-
-        );
-
-    }
-
-
-    function getResult(
-        battle
-    ) {
-
-        return safeString(
-            battle &&
-            battle.judgement
-        ).toUpperCase();
-
-    }
-
-
-    function isWin(
-        battle
-    ) {
-
-        return (
-            getResult(
-                battle
-            ) === "WIN"
-        );
-
-    }
-
-
-    function isLose(
-        battle
-    ) {
-
-        const result =
-            getResult(
-                battle
-            );
-
-
-        return (
-            result === "LOSE" ||
-            result === "LOSS" ||
-            result === "DEFEAT"
-        );
-
-    }
-
-
-    function getResultLabel(
-        battle
-    ) {
-
-        if (
-            isWin(battle)
-        ) {
-
-            return "WIN";
-
-        }
-
-
-        if (
-            isLose(battle)
-        ) {
-
-            return "LOSE";
-
-        }
-
-
-        const result =
-            getResult(
-                battle
-            );
-
-
-        return result || "—";
-
-    }
-
-
-    /* =======================================================
-       IMAGE
-    ======================================================= */
-
-    function setImage(
-        image,
-        src,
-        alt
-    ) {
-
-        if (!image) {
-            return;
-        }
-
-
-        image.alt =
-            alt || "";
-
-
-        if (!src) {
-
-            image.classList.add(
-                "image-empty"
-            );
-
-            return;
-
-        }
-
-
-        image.src =
-            src;
-
-
-        image.addEventListener(
-            "error",
-            function () {
-
-                image.classList.add(
-                    "image-error"
-                );
-
-            },
-            {
-                once: true
+    const Battle = {
+
+        state: {
+            battles: [],
+            filteredBattles: [],
+            currentBattle: null,
+            currentFilter: "all",
+            initialized: false
+        },
+
+        // =========================
+        // Basic Utilities
+        // =========================
+
+        el: function (tag, className, text) {
+
+            const element =
+                document.createElement(tag);
+
+            if (className) {
+                element.className = className;
             }
-        );
 
-    }
-
-
-    function createImage(
-        src,
-        alt,
-        className
-    ) {
-
-        const image =
-            el(
-                "img",
-                className || ""
-            );
-
-
-        setImage(
-            image,
-            src,
-            alt
-        );
-
-
-        return image;
-
-    }
-
-
-    /* =======================================================
-       WEAPON
-    ======================================================= */
-
-    function getWeapon(
-        player
-    ) {
-
-        if (
-            !player ||
-            !player.weapon
-        ) {
-
-            return null;
-
-        }
-
-
-        return player.weapon;
-
-    }
-
-
-    function createWeaponImage(
-        player,
-        className
-    ) {
-
-        const weapon =
-            getWeapon(
-                player
-            );
-
-
-        const image =
-            createImage(
-                weapon &&
-                (
-                    weapon.image ||
-                    weapon.image2d ||
-                    weapon.image3d ||
-                    weapon.thumbnail
-                ),
-                weapon &&
-                weapon.name
-                    ? weapon.name
-                    : "ブキ",
-                className ||
-                "battle-weapon-image"
-            );
-
-
-        return image;
-
-    }
-
-
-    /* =======================================================
-       PLAYER
-    ======================================================= */
-
-    function getAllPlayers(
-        battle
-    ) {
-
-        const teams =
-            Array.isArray(
-                battle &&
-                battle.teams
-            )
-                ? battle.teams
-                : [];
-
-
-        const players = [];
-
-
-        teams.forEach(
-            function (team) {
-
-                const teamPlayers =
-                    Array.isArray(
-                        team.players
-                    )
-                        ? team.players
-                        : [];
-
-
-                teamPlayers.forEach(
-                    function (player) {
-
-                        players.push(
-                            player
-                        );
-
-                    }
-                );
-
+            if (text !== undefined) {
+                element.textContent = String(text);
             }
-        );
 
+            return element;
+        },
 
-        return players;
+        clear: function (element) {
 
-    }
+            if (!element) {
+                return;
+            }
 
+            while (element.firstChild) {
+                element.removeChild(
+                    element.firstChild
+                );
+            }
+        },
 
-    function getMyPlayer(
-        battle
-    ) {
-
-        /*
-         * parser.jsが
-         * myTeam.players[].isMyself を
-         * 優先しているので、まずそれを探す。
-         */
-
-        const players =
-            getAllPlayers(
-                battle
-            );
-
-
-        for (
-            let i = 0;
-            i < players.length;
-            i++
-        ) {
+        text: function (value, fallback) {
 
             if (
-                players[i].isMyself
+                value === null ||
+                value === undefined ||
+                value === ""
             ) {
-
-                return players[i];
-
+                return fallback || "";
             }
 
-        }
+            return String(value);
+        },
 
+        number: function (value, fallback) {
 
-        /*
-         * 念のためbattle.playerも確認。
-         */
+            const number =
+                Number(value);
 
-        if (
-            battle &&
-            battle.player
+            if (Number.isFinite(number)) {
+                return number;
+            }
+
+            return fallback || 0;
+        },
+
+        percent: function (value) {
+
+            const number =
+                this.number(value);
+
+            if (number <= 1) {
+                return Math.round(
+                    number * 1000
+                ) / 10;
+            }
+
+            return Math.round(
+                number * 10
+            ) / 10;
+        },
+
+        formatDate: function (value) {
+
+            if (!value) {
+                return "日時不明";
+            }
+
+            const date =
+                new Date(value);
+
+            if (
+                Number.isNaN(
+                    date.getTime()
+                )
+            ) {
+                return String(value);
+            }
+
+            const y =
+                date.getFullYear();
+
+            const m =
+                String(
+                    date.getMonth() + 1
+                ).padStart(2, "0");
+
+            const d =
+                String(
+                    date.getDate()
+                ).padStart(2, "0");
+
+            const h =
+                String(
+                    date.getHours()
+                ).padStart(2, "0");
+
+            const min =
+                String(
+                    date.getMinutes()
+                ).padStart(2, "0");
+
+            return (
+                y +
+                "/" +
+                m +
+                "/" +
+                d +
+                " " +
+                h +
+                ":" +
+                min
+            );
+        },
+
+        // =========================
+        // Result
+        // =========================
+
+        getResult: function (battle) {
+
+            if (!battle) {
+                return "UNKNOWN";
+            }
+
+            const result =
+                battle.result ||
+                battle.judgement ||
+                (
+                    battle.myTeam &&
+                    battle.myTeam.judgement
+                );
+
+            if (!result) {
+                return "UNKNOWN";
+            }
+
+            const value =
+                String(result).toUpperCase();
+
+            if (
+                value === "WIN" ||
+                value === "LOSE" ||
+                value === "LOSS"
+            ) {
+                return value === "LOSS"
+                    ? "LOSE"
+                    : value;
+            }
+
+            if (
+                value.includes("WIN")
+            ) {
+                return "WIN";
+            }
+
+            if (
+                value.includes("LOSE") ||
+                value.includes("LOSS")
+            ) {
+                return "LOSE";
+            }
+
+            return "UNKNOWN";
+        },
+
+        getResultLabel: function (result) {
+
+            switch (result) {
+
+                case "WIN":
+                    return "WIN";
+
+                case "LOSE":
+                    return "LOSE";
+
+                default:
+                    return "—";
+            }
+        },
+
+        // =========================
+        // Image
+        // =========================
+
+        createImage: function (
+            src,
+            className,
+            alt
         ) {
 
-            return battle.player;
+            const image =
+                this.el(
+                    "img",
+                    className || ""
+                );
 
-        }
+            image.alt =
+                alt || "";
 
+            image.loading =
+                "lazy";
 
-        return null;
+            if (src) {
 
-    }
+                image.src =
+                    src;
 
+            } else {
 
-    function createPlayerStats(
-        player
-    ) {
+                image.classList.add(
+                    "image-missing"
+                );
+            }
 
-        const result =
-            player &&
-            player.result
-                ? player.result
-                : {};
+            image.addEventListener(
+                "error",
+                function () {
 
+                    image.classList.add(
+                        "image-error"
+                    );
 
-        const stats =
-            el(
-                "div",
-                "player-stats"
+                    image.removeAttribute(
+                        "src"
+                    );
+                },
+                { once: true }
             );
 
+            return image;
+        },
 
-        const values = [
+        // =========================
+        // Weapon
+        // =========================
 
-            [
-                "K",
-                numberValue(
+        getWeapon: function (player) {
+
+            if (
+                !player ||
+                !player.weapon
+            ) {
+                return null;
+            }
+
+            return player.weapon;
+        },
+
+        createWeaponImage: function (
+            weapon,
+            className
+        ) {
+
+            const wrapper =
+                this.el(
+                    "div",
+                    className ||
+                    "battle-weapon-image"
+                );
+
+            if (!weapon) {
+                return wrapper;
+            }
+
+            const imageUrl =
+                weapon.image ||
+                weapon.image2d ||
+                weapon.thumbnail;
+
+            if (imageUrl) {
+
+                wrapper.append(
+                    this.createImage(
+                        imageUrl,
+                        "weapon-icon",
+                        weapon.name || "ブキ"
+                    )
+                );
+
+            } else {
+
+                wrapper.classList.add(
+                    "image-missing"
+                );
+            }
+
+            return wrapper;
+        },
+
+        // =========================
+        // Player
+        // =========================
+
+        getPlayers: function (team) {
+
+            if (
+                !team ||
+                !Array.isArray(team.players)
+            ) {
+                return [];
+            }
+
+            return team.players;
+        },
+
+        getMyPlayer: function (battle) {
+
+            if (!battle) {
+                return null;
+            }
+
+            if (
+                battle.player &&
+                battle.player.isMyself
+            ) {
+                return battle.player;
+            }
+
+            const teams =
+                battle.teams || [];
+
+            for (
+                let i = 0;
+                i < teams.length;
+                i++
+            ) {
+
+                const players =
+                    this.getPlayers(
+                        teams[i]
+                    );
+
+                const player =
+                    players.find(
+                        function (item) {
+                            return (
+                                item &&
+                                item.isMyself
+                            );
+                        }
+                    );
+
+                if (player) {
+                    return player;
+                }
+            }
+
+            if (
+                battle.player
+            ) {
+                return battle.player;
+            }
+
+            return null;
+        },
+
+        getPlayerName: function (
+            player
+        ) {
+
+            if (!player) {
+                return "名無し";
+            }
+
+            return (
+                player.name ||
+                player.callSign ||
+                player.byname ||
+                "名無し"
+            );
+        },
+
+        getPlayerStats: function (
+            player
+        ) {
+
+            const result =
+                player &&
+                player.result
+                    ? player.result
+                    : {};
+
+            return {
+                kill: this.number(
                     result.kill
-                )
-            ],
-
-            [
-                "A",
-                numberValue(
+                ),
+                assist: this.number(
                     result.assist
-                )
-            ],
-
-            [
-                "D",
-                numberValue(
+                ),
+                death: this.number(
                     result.death
-                )
-            ],
-
-            [
-                "SP",
-                numberValue(
+                ),
+                special: this.number(
                     result.special
+                ),
+                paint: this.number(
+                    player &&
+                    player.paint
+                ),
+                noroshiTry: this.number(
+                    result.noroshiTry
                 )
-            ]
+            };
+        },
 
-        ];
+        // =========================
+        // Player Detail
+        // =========================
 
+        createGearRow: function (
+            label,
+            gear
+        ) {
 
-        values.forEach(
-            function (item) {
+            const row =
+                this.el(
+                    "div",
+                    "player-gear-row"
+                );
 
-                const stat =
-                    el(
+            const title =
+                this.el(
+                    "span",
+                    "player-gear-label",
+                    label
+                );
+
+            const content =
+                this.el(
+                    "div",
+                    "player-gear-content"
+                );
+
+            if (gear) {
+
+                if (gear.image) {
+
+                    content.append(
+                        this.createImage(
+                            gear.image,
+                            "gear-image",
+                            gear.name || label
+                        )
+                    );
+                }
+
+                content.append(
+                    this.el(
                         "span",
-                        "player-stat"
+                        "player-gear-name",
+                        gear.name || "不明"
+                    )
+                );
+
+            } else {
+
+                content.append(
+                    this.el(
+                        "span",
+                        "player-gear-name",
+                        "—"
+                    )
+                );
+            }
+
+            row.append(
+                title,
+                content
+            );
+
+            return row;
+        },
+
+        createPlayerDetail: function (
+            player
+        ) {
+
+            const panel =
+                this.el(
+                    "div",
+                    "player-detail-panel"
+                );
+
+            if (!player) {
+                return panel;
+            }
+
+            const header =
+                this.el(
+                    "div",
+                    "player-detail-header"
+                );
+
+            if (
+                player.nameplate &&
+                player.nameplate.image
+            ) {
+
+                header.append(
+                    this.createImage(
+                        player.nameplate.image,
+                        "player-nameplate-image",
+                        "ネームプレート"
+                    )
+                );
+            }
+
+            const nameBlock =
+                this.el(
+                    "div",
+                    "player-detail-name"
+                );
+
+            nameBlock.append(
+                this.el(
+                    "div",
+                    "player-name",
+                    this.getPlayerName(
+                        player
+                    )
+                )
+            );
+
+            if (player.byname) {
+
+                nameBlock.append(
+                    this.el(
+                        "div",
+                        "player-byname",
+                        player.byname
+                    )
+                );
+            }
+
+            header.append(
+                nameBlock
+            );
+
+            panel.append(
+                header
+            );
+
+            // -------------------------
+            // Weapon
+            // -------------------------
+
+            const weapon =
+                this.getWeapon(player);
+
+            if (weapon) {
+
+                const weaponBox =
+                    this.el(
+                        "div",
+                        "player-detail-weapon"
                     );
 
+                weaponBox.append(
+                    this.createWeaponImage(
+                        weapon,
+                        "player-detail-weapon-image"
+                    )
+                );
 
-                const label =
-                    el(
-                        "span",
-                        "player-stat-label",
-                        item[0]
+                const weaponInfo =
+                    this.el(
+                        "div",
+                        "player-detail-weapon-info"
                     );
 
+                weaponInfo.append(
+                    this.el(
+                        "div",
+                        "player-detail-weapon-name",
+                        weapon.name || "不明"
+                    )
+                );
 
-                const value =
-                    el(
-                        "span",
-                        "player-stat-value",
-                        String(
+                if (
+                    weapon.subWeapon &&
+                    weapon.subWeapon.name
+                ) {
+
+                    weaponInfo.append(
+                        this.el(
+                            "div",
+                            "player-detail-sub",
+                            "サブ  " +
+                            weapon.subWeapon.name
+                        )
+                    );
+                }
+
+                if (
+                    weapon.specialWeapon &&
+                    weapon.specialWeapon.name
+                ) {
+
+                    weaponInfo.append(
+                        this.el(
+                            "div",
+                            "player-detail-special",
+                            "スペシャル  " +
+                            weapon.specialWeapon.name
+                        )
+                    );
+                }
+
+                weaponBox.append(
+                    weaponInfo
+                );
+
+                panel.append(
+                    weaponBox
+                );
+            }
+
+            // -------------------------
+            // Stats
+            // -------------------------
+
+            const stats =
+                this.getPlayerStats(
+                    player
+                );
+
+            const statsBox =
+                this.el(
+                    "div",
+                    "player-detail-stats"
+                );
+
+            const statItems = [
+                ["K", stats.kill],
+                ["A", stats.assist],
+                ["D", stats.death],
+                ["SP", stats.special],
+                ["塗り", stats.paint]
+            ];
+
+            statItems.forEach(
+                function (item) {
+
+                    const box =
+                        this.el(
+                            "div",
+                            "player-stat"
+                        );
+
+                    box.append(
+                        this.el(
+                            "span",
+                            "player-stat-label",
+                            item[0]
+                        ),
+                        this.el(
+                            "strong",
+                            "player-stat-value",
                             item[1]
                         )
                     );
 
-
-                stat.append(
-                    label,
-                    value
-                );
-
-
-                stats.append(
-                    stat
-                );
-
-            }
-        );
-
-
-        return stats;
-
-    }
-
-
-    function createPlayerCard(
-        player,
-        teamIndex,
-        playerIndex,
-        clickable
-    ) {
-
-        const card =
-            el(
-                "button",
-                "result-player"
+                    statsBox.append(
+                        box
+                    );
+                }
             );
 
+            panel.append(
+                statsBox
+            );
 
-        card.type =
-            "button";
+            // -------------------------
+            // Gear
+            // -------------------------
 
+            const gearBox =
+                this.el(
+                    "div",
+                    "player-gear-list"
+                );
 
-        if (
-            player &&
-            player.isMyself
+            gearBox.append(
+                this.createGearRow(
+                    "アタマ",
+                    player.headGear
+                ),
+                this.createGearRow(
+                    "フク",
+                    player.clothingGear
+                ),
+                this.createGearRow(
+                    "クツ",
+                    player.shoesGear
+                )
+            );
+
+            panel.append(
+                gearBox
+            );
+
+            return panel;
+        },
+
+        // =========================
+        // Team Color
+        // =========================
+
+        getTeamColor: function (
+            team
         ) {
 
-            card.classList.add(
-                "is-me"
+            if (
+                !team ||
+                !team.color
+            ) {
+                return "";
+            }
+
+            if (
+                typeof team.color === "string"
+            ) {
+                return team.color;
+            }
+
+            return (
+                team.color.cssColor ||
+                team.color.hex ||
+                team.color.value ||
+                team.color.color ||
+                ""
+            );
+        },
+
+        applyTeamColor: function (
+            element,
+            team
+        ) {
+
+            const color =
+                this.getTeamColor(
+                    team
+                );
+
+            if (
+                element &&
+                color
+            ) {
+
+                element.style.setProperty(
+                    "--team-color",
+                    color
+                );
+
+                element.style.setProperty(
+                    "--ink-color",
+                    color
+                );
+            }
+        },
+
+        // =========================
+        // Team Role
+        // =========================
+
+        getRoleLabel: function (
+            role
+        ) {
+
+            switch (
+                String(role || "")
+                    .toUpperCase()
+            ) {
+
+                case "DEFENSE":
+                    return "守備側";
+
+                case "ATTACK":
+                case "ATTACK1":
+                    return "攻撃側";
+
+                case "ATTACK2":
+                    return "攻撃側";
+
+                default:
+                    return role || "";
+            }
+        },
+
+        // =========================
+        // Team Card
+        // =========================
+
+        createPlayerCard: function (
+            player
+        ) {
+
+            const card =
+                this.el(
+                    "button",
+                    "battle-player-card"
+                );
+
+            card.type =
+                "button";
+
+            const weapon =
+                this.getWeapon(
+                    player
+                );
+
+            card.append(
+                this.createWeaponImage(
+                    weapon,
+                    "battle-player-weapon"
+                )
             );
 
-        }
+            const information =
+                this.el(
+                    "div",
+                    "battle-player-info"
+                );
 
-
-        const weaponArea =
-            el(
-                "span",
-                "result-player-weapon"
+            information.append(
+                this.el(
+                    "div",
+                    "battle-player-name",
+                    this.getPlayerName(
+                        player
+                    )
+                )
             );
 
+            const stats =
+                this.getPlayerStats(
+                    player
+                );
 
-        weaponArea.append(
-            createWeaponImage(
-                player,
-                "result-player-weapon-image"
-            )
-        );
+            information.append(
+                this.el(
+                    "div",
+                    "battle-player-stats",
+                    stats.kill +
+                    "/" +
+                    stats.assist +
+                    "/" +
+                    stats.death
+                )
+            );
 
+            card.append(
+                information
+            );
 
+            card.addEventListener(
+                "click",
+        
         const center =
             el(
                 "span",
