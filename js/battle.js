@@ -1,533 +1,826 @@
-// =========================
-// Battle
-// InkBoard
-// Battle History / Detail
-// =========================
+/* =========================================================
+   InkBoard
+   js/battle.js
+   ========================================================= */
 
 (function () {
 
     "use strict";
 
 
-    // ========================================
-    // State
-    // ========================================
+    /* =======================================================
+       STATE
+    ======================================================= */
 
-    let battles = [];
+    const State = {
 
-    let currentBattle = null;
+        battles: [],
+
+        filteredBattles: [],
+
+        currentBattle: null,
+
+        currentFilter: "all",
+
+        initialized: false
+
+    };
 
 
-    // ========================================
-    // Utility
-    // ========================================
+    /* =======================================================
+       UTILITY
+    ======================================================= */
 
-    function safeString(value, fallback = "") {
+    function el(
+        tag,
+        className,
+        text
+    ) {
+
+        const element =
+            document.createElement(
+                tag
+            );
+
+
+        if (className) {
+
+            element.className =
+                className;
+
+        }
+
 
         if (
-            value === null ||
-            value === undefined
+            text !== undefined &&
+            text !== null
         ) {
-            return fallback;
+
+            element.textContent =
+                text;
+
         }
+
+
+        return element;
+
+    }
+
+
+    function safeString(
+        value,
+        fallback
+    ) {
+
+        if (
+            value === undefined ||
+            value === null ||
+            value === ""
+        ) {
+
+            return fallback || "";
+
+        }
+
 
         return String(value);
+
     }
 
 
-    function number(value) {
+    function numberValue(
+        value
+    ) {
 
-        const n = Number(value);
+        const number =
+            Number(value);
 
-        return Number.isFinite(n)
-            ? n
+
+        return Number.isFinite(
+            number
+        )
+            ? number
             : 0;
+
     }
 
 
-    function array(value) {
+    function formatNumber(
+        value
+    ) {
 
-        return Array.isArray(value)
-            ? value
-            : [];
-    }
-
-
-    function escapeHTML(value) {
-
-        return safeString(value)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-
-    function formatNumber(value) {
-
-        return number(value).toLocaleString(
+        return numberValue(
+            value
+        ).toLocaleString(
             "ja-JP"
         );
+
     }
 
 
-    function getResultClass(result) {
+    function formatPercent(
+        value
+    ) {
 
-        const value =
-            safeString(result).toUpperCase();
+        return (
+            numberValue(value)
+                .toFixed(1)
+        ) + "%";
 
-
-        if (value === "WIN") {
-            return "win";
-        }
-
-
-        if (value === "LOSE") {
-            return "lose";
-        }
-
-
-        return "unknown";
     }
 
 
-    function getResultText(result) {
-
-        const value =
-            safeString(result).toUpperCase();
-
-
-        if (value === "WIN") {
-            return "WIN";
-        }
-
-
-        if (value === "LOSE") {
-            return "LOSE";
-        }
-
-
-        return value || "—";
-    }
-
-
-    function formatPlayedTime(value) {
+    function formatDate(
+        value
+    ) {
 
         if (!value) {
+
             return "日時不明";
+
         }
 
 
         const date =
-            new Date(value);
+            new Date(
+                value
+            );
 
 
         if (
-            !Number.isFinite(
+            Number.isNaN(
                 date.getTime()
             )
         ) {
-            return safeString(value);
+
+            return safeString(
+                value,
+                "日時不明"
+            );
+
         }
 
 
-        const year =
-            date.getFullYear();
-
-
-        const month =
+        return (
+            date.getFullYear() +
+            "/" +
             String(
                 date.getMonth() + 1
-            ).padStart(2, "0");
-
-
-        const day =
+            ).padStart(
+                2,
+                "0"
+            ) +
+            "/" +
             String(
                 date.getDate()
-            ).padStart(2, "0");
-
-
-        const hour =
+            ).padStart(
+                2,
+                "0"
+            ) +
+            " " +
             String(
                 date.getHours()
-            ).padStart(2, "0");
-
-
-        const minute =
+            ).padStart(
+                2,
+                "0"
+            ) +
+            ":" +
             String(
                 date.getMinutes()
-            ).padStart(2, "0");
+            ).padStart(
+                2,
+                "0"
+            )
 
-
-        return (
-            year +
-            "/" +
-            month +
-            "/" +
-            day +
-            " " +
-            hour +
-            ":" +
-            minute
         );
+
     }
 
 
-    function formatDuration(seconds) {
-
-        const value =
-            number(seconds);
-
-
-        if (value <= 0) {
-            return "—";
-        }
-
-
-        const minutes =
-            Math.floor(
-                value / 60
-            );
-
-
-        const sec =
-            value % 60;
-
-
-        return (
-            String(minutes) +
-            ":" +
-            String(sec).padStart(2, "0")
-        );
-    }
-
-
-    function getWeaponImage(weapon) {
-
-        if (!weapon) {
-            return "";
-        }
-
-
-        return (
-            weapon.image ||
-            weapon.image2d ||
-            weapon.image3d ||
-            weapon.thumbnail ||
-            ""
-        );
-    }
-
-
-    function getSpecialImage(weapon) {
-
-        if (
-            !weapon ||
-            !weapon.specialWeapon
-        ) {
-            return "";
-        }
-
+    function getResult(
+        battle
+    ) {
 
         return safeString(
-            weapon.specialWeapon.image
+            battle &&
+            battle.judgement
+        ).toUpperCase();
+
+    }
+
+
+    function isWin(
+        battle
+    ) {
+
+        return (
+            getResult(
+                battle
+            ) === "WIN"
         );
-    }
-
-
-    function getSpecialName(weapon) {
-
-        if (
-            !weapon ||
-            !weapon.specialWeapon
-        ) {
-            return "—";
-        }
-
-
-        return safeString(
-            weapon.specialWeapon.name,
-            "—"
-        );
-    }
-
-
-    function getSubName(weapon) {
-
-        if (
-            !weapon ||
-            !weapon.subWeapon
-        ) {
-            return "—";
-        }
-
-
-        return safeString(
-            weapon.subWeapon.name,
-            "—"
-        );
-    }
-
-
-    // ========================================
-    // DOM
-    // ========================================
-
-    function getElement(id) {
-
-        return document.getElementById(id);
 
     }
 
 
-    function getBattleListElement() {
-
-        return getElement("battleList");
-
-    }
-
-
-    function getBattleDetailElement() {
-
-        return getElement("battleDetail");
-
-    }
-
-
-    // ========================================
-    // Load Battles
-    // ========================================
-
-    async function loadBattles() {
-
-        if (
-            !window.Storage ||
-            !window.Storage.getAllBattles
-        ) {
-
-            battles = [];
-
-            return battles;
-        }
-
-
-        battles =
-            await window.Storage.getAllBattles();
-
-
-        return battles;
-    }
-
-
-    // ========================================
-    // Get Battle
-    // ========================================
-
-    async function getBattle(id) {
-
-        if (!id) {
-            return null;
-        }
-
-
-        if (
-            window.Storage &&
-            window.Storage.getBattle
-        ) {
-
-            const stored =
-                await window.Storage.getBattle(
-                    id
-                );
-
-
-            if (stored) {
-                return stored;
-            }
-
-        }
-
-
-        return battles.find(
-            function (battle) {
-
-                return battle.id === id;
-
-            }
-        ) || null;
-    }
-
-
-    // ========================================
-    // Battle Row
-    // ========================================
-
-    function createBattleRow(battle) {
+    function isLose(
+        battle
+    ) {
 
         const result =
-            getResultClass(
-                battle.judgement
+            getResult(
+                battle
             );
 
 
-        const resultText =
-            getResultText(
-                battle.judgement
+        return (
+            result === "LOSE" ||
+            result === "LOSS" ||
+            result === "DEFEAT"
+        );
+
+    }
+
+
+    function getResultLabel(
+        battle
+    ) {
+
+        if (
+            isWin(battle)
+        ) {
+
+            return "WIN";
+
+        }
+
+
+        if (
+            isLose(battle)
+        ) {
+
+            return "LOSE";
+
+        }
+
+
+        const result =
+            getResult(
+                battle
             );
 
 
-        const ruleName =
-            battle.rule &&
-            battle.rule.name
-                ? battle.rule.name
-                : "ルール不明";
+        return result || "—";
+
+    }
 
 
-        const stageName =
-            battle.stage &&
-            battle.stage.name
-                ? battle.stage.name
-                : "ステージ不明";
+    /* =======================================================
+       IMAGE
+    ======================================================= */
+
+    function setImage(
+        image,
+        src,
+        alt
+    ) {
+
+        if (!image) {
+            return;
+        }
 
 
-        const player =
-            battle.player || {};
+        image.alt =
+            alt || "";
 
 
-        const weapon =
-            player.weapon || {};
+        if (!src) {
 
-
-        const weaponImage =
-            getWeaponImage(
-                weapon
+            image.classList.add(
+                "image-empty"
             );
 
+            return;
 
-        const weaponHTML =
-            weaponImage
-                ? `
-                    <img
-                        class="battle-row-weapon-image"
-                        src="${escapeHTML(weaponImage)}"
-                        alt=""
-                        loading="lazy"
-                    >
-                `
-                : `
-                    <span class="material-symbols-rounded">
-                        construction
-                    </span>
-                `;
+        }
 
 
-        const tricolorBadge =
-            battle.isTricolor
-                ? `
-                    <span class="battle-row-badge">
-                        トリカラ
-                    </span>
-                `
-                : "";
+        image.src =
+            src;
 
 
-        const row =
-            document.createElement("button");
-
-
-        row.type = "button";
-
-        row.className =
-            "battle-row " +
-            "battle-row-" +
-            result;
-
-
-        row.dataset.battleId =
-            safeString(battle.id);
-
-
-        row.innerHTML = `
-
-            <span class="battle-row-result">
-                <span class="battle-result-badge ${result}">
-                    ${escapeHTML(resultText)}
-                </span>
-
-                <span class="battle-row-time">
-                    ${escapeHTML(
-                        formatPlayedTime(
-                            battle.playedTime
-                        )
-                    )}
-                </span>
-            </span>
-
-
-            <span class="battle-row-rule">
-                <span class="battle-row-rule-name">
-                    ${escapeHTML(ruleName)}
-                </span>
-
-                ${tricolorBadge}
-            </span>
-
-
-            <span class="battle-row-stage">
-                ${escapeHTML(stageName)}
-            </span>
-
-
-            <span class="battle-row-weapon">
-                ${weaponHTML}
-
-                <span class="battle-row-weapon-name">
-                    ${escapeHTML(
-                        weapon.name || "—"
-                    )}
-                </span>
-            </span>
-
-        `;
-
-
-        row.addEventListener(
-            "click",
+        image.addEventListener(
+            "error",
             function () {
 
-                const battleId =
-                    row.dataset.battleId;
+                image.classList.add(
+                    "image-error"
+                );
+
+            },
+            {
+                once: true
+            }
+        );
+
+    }
 
 
-                document.dispatchEvent(
-                    new CustomEvent(
-                        "openBattleDetail",
-                        {
-                            detail: {
-                                battleId:
-                                    battleId
-                            }
-                        }
+    function createImage(
+        src,
+        alt,
+        className
+    ) {
+
+        const image =
+            el(
+                "img",
+                className || ""
+            );
+
+
+        setImage(
+            image,
+            src,
+            alt
+        );
+
+
+        return image;
+
+    }
+
+
+    /* =======================================================
+       WEAPON
+    ======================================================= */
+
+    function getWeapon(
+        player
+    ) {
+
+        if (
+            !player ||
+            !player.weapon
+        ) {
+
+            return null;
+
+        }
+
+
+        return player.weapon;
+
+    }
+
+
+    function createWeaponImage(
+        player,
+        className
+    ) {
+
+        const weapon =
+            getWeapon(
+                player
+            );
+
+
+        const image =
+            createImage(
+                weapon &&
+                (
+                    weapon.image ||
+                    weapon.image2d ||
+                    weapon.image3d ||
+                    weapon.thumbnail
+                ),
+                weapon &&
+                weapon.name
+                    ? weapon.name
+                    : "ブキ",
+                className ||
+                "battle-weapon-image"
+            );
+
+
+        return image;
+
+    }
+
+
+    /* =======================================================
+       PLAYER
+    ======================================================= */
+
+    function getAllPlayers(
+        battle
+    ) {
+
+        const teams =
+            Array.isArray(
+                battle &&
+                battle.teams
+            )
+                ? battle.teams
+                : [];
+
+
+        const players = [];
+
+
+        teams.forEach(
+            function (team) {
+
+                const teamPlayers =
+                    Array.isArray(
+                        team.players
                     )
+                        ? team.players
+                        : [];
+
+
+                teamPlayers.forEach(
+                    function (player) {
+
+                        players.push(
+                            player
+                        );
+
+                    }
                 );
 
             }
         );
 
 
-        return row;
+        return players;
+
     }
 
 
-    // ========================================
-    // Empty List
-    // ========================================
+    function getMyPlayer(
+        battle
+    ) {
 
-    function renderEmptyList() {
+        /*
+         * parser.jsが
+         * myTeam.players[].isMyself を
+         * 優先しているので、まずそれを探す。
+         */
+
+        const players =
+            getAllPlayers(
+                battle
+            );
+
+
+        for (
+            let i = 0;
+            i < players.length;
+            i++
+        ) {
+
+            if (
+                players[i].isMyself
+            ) {
+
+                return players[i];
+
+            }
+
+        }
+
+
+        /*
+         * 念のためbattle.playerも確認。
+         */
+
+        if (
+            battle &&
+            battle.player
+        ) {
+
+            return battle.player;
+
+        }
+
+
+        return null;
+
+    }
+
+
+    function createPlayerStats(
+        player
+    ) {
+
+        const result =
+            player &&
+            player.result
+                ? player.result
+                : {};
+
+
+        const stats =
+            el(
+                "div",
+                "player-stats"
+            );
+
+
+        const values = [
+
+            [
+                "K",
+                numberValue(
+                    result.kill
+                )
+            ],
+
+            [
+                "A",
+                numberValue(
+                    result.assist
+                )
+            ],
+
+            [
+                "D",
+                numberValue(
+                    result.death
+                )
+            ],
+
+            [
+                "SP",
+                numberValue(
+                    result.special
+                )
+            ]
+
+        ];
+
+
+        values.forEach(
+            function (item) {
+
+                const stat =
+                    el(
+                        "span",
+                        "player-stat"
+                    );
+
+
+                const label =
+                    el(
+                        "span",
+                        "player-stat-label",
+                        item[0]
+                    );
+
+
+                const value =
+                    el(
+                        "span",
+                        "player-stat-value",
+                        String(
+                            item[1]
+                        )
+                    );
+
+
+                stat.append(
+                    label,
+                    value
+                );
+
+
+                stats.append(
+                    stat
+                );
+
+            }
+        );
+
+
+        return stats;
+
+    }
+
+
+    function createPlayerCard(
+        player,
+        teamIndex,
+        playerIndex,
+        clickable
+    ) {
+
+        const card =
+            el(
+                "button",
+                "result-player"
+            );
+
+
+        card.type =
+            "button";
+
+
+        if (
+            player &&
+            player.isMyself
+        ) {
+
+            card.classList.add(
+                "is-me"
+            );
+
+        }
+
+
+        const weaponArea =
+            el(
+                "span",
+                "result-player-weapon"
+            );
+
+
+        weaponArea.append(
+            createWeaponImage(
+                player,
+                "result-player-weapon-image"
+            )
+        );
+
+
+        const center =
+            el(
+                "span",
+                "result-player-center"
+            );
+
+
+        const name =
+            el(
+                "span",
+                "result-player-name",
+                safeString(
+                    player &&
+                    player.name,
+                    "プレイヤー"
+                )
+            );
+
+
+        center.append(
+            name
+        );
+
+
+        if (
+            player &&
+            player.byname
+        ) {
+
+            center.append(
+                el(
+                    "span",
+                    "result-player-byname",
+                    player.byname
+                )
+            );
+
+        }
+
+
+        const stats =
+            createPlayerStats(
+                player
+            );
+
+
+        const paint =
+            el(
+                "span",
+                "result-player-paint",
+                formatNumber(
+                    player &&
+                    player.paint
+                )
+            );
+
+
+        card.append(
+            weaponArea,
+            center,
+            stats,
+            paint
+        );
+
+
+        if (clickable !== false) {
+
+            card.addEventListener(
+                "click",
+                function () {
+
+                    showPlayerDetail(
+                        player,
+                        teamIndex,
+                        playerIndex
+                    );
+
+                }
+            );
+
+        } else {
+
+            card.disabled =
+                true;
+
+        }
+
+
+        return card;
+
+    }
+
+
+    /* =======================================================
+       PLAYER DETAIL
+    ======================================================= */
+
+    function createGearItem(
+        gear,
+        label
+    ) {
+
+        const item =
+            el(
+                "div",
+                "gear-item"
+            );
+
+
+        const image =
+            createImage(
+                gear &&
+                gear.image,
+                label,
+                "gear-image"
+            );
+
+
+        const info =
+            el(
+                "div",
+                "gear-info"
+            );
+
+
+        info.append(
+            el(
+                "div",
+                "gear-label",
+                label
+            ),
+            el(
+                "div",
+                "gear-name",
+                safeString(
+                    gear &&
+                    gear.name,
+                    "不明"
+                )
+            )
+        );
+
+
+        item.append(
+            image,
+            info
+        );
+
+
+        return item;
+
+    }
+
+
+    function showPlayerDetail(
+        player,
+        teamIndex,
+        playerIndex
+    ) {
+
+        if (!player) {
+            return;
+        }
+
 
         const container =
-            getBattleListElement();
+            document.getElementById(
+                "battleDetail"
+            );
 
 
         if (!container) {
@@ -535,27 +828,419 @@
         }
 
 
-        container.innerHTML = `
+        const current =
+            container.querySelector(
+                ".player-detail-panel"
+            );
 
-            <div class="battle-empty">
 
-                <span class="material-symbols-rounded">
-                    sports_esports
-                </span>
+        if (current) {
 
-                <h2>
-                    バトル履歴がありません
-                </h2>
+            current.remove();
 
-                <p>
-                    ホラガイベイからJSONまたはZIPを
-                    インポートしてください。
-                </p>
+        }
 
-                <button
-                    type="button"
-                    class="primary-button"
-                    id="battleEmptyImportButton"
+
+        const panel =
+            el(
+                "section",
+                "player-detail-panel"
+            );
+
+
+        const header =
+            el(
+                "div",
+                "player-detail-header"
+            );
+
+
+        const close =
+            el(
+                "button",
+                "player-detail-close",
+                "閉じる"
+            );
+
+
+        close.type =
+            "button";
+
+
+        close.addEventListener(
+            "click",
+            function () {
+
+                panel.remove();
+
+            }
+        );
+
+
+        const nameArea =
+            el(
+                "div",
+                "player-detail-name-area"
+            );
+
+
+        nameArea.append(
+            el(
+                "div",
+                "player-detail-name",
+                safeString(
+                    player.name,
+                    "プレイヤー"
+                )
+            )
+        );
+
+
+        if (
+            player.byname
+        ) {
+
+            nameArea.append(
+                el(
+                    "div",
+                    "player-detail-byname",
+                    player.byname
+                )
+            );
+
+        }
+
+
+        header.append(
+            nameArea,
+            close
+        );
+
+
+        const nameplate =
+            el(
+                "div",
+                "player-nameplate"
+            );
+
+
+        if (
+            player.nameplate &&
+            player.nameplate.image
+        ) {
+
+            nameplate.append(
+                createImage(
+                    player.nameplate.image,
+                    "ネームプレート",
+                    "player-nameplate-image"
+                )
+            );
+
+        }
+
+
+        const weapon =
+            getWeapon(
+                player
+            );
+
+
+        const weaponBox =
+            el(
+                "div",
+                "player-detail-weapon"
+            );
+
+
+        weaponBox.append(
+            createWeaponImage(
+                player,
+                "player-detail-weapon-image"
+            )
+        );
+
+
+        const weaponInfo =
+            el(
+                "div",
+                "player-detail-weapon-info"
+            );
+
+
+        weaponInfo.append(
+            el(
+                "div",
+                "player-detail-section-label",
+                "ブキ"
+            ),
+            el(
+                "div",
+                "player-detail-weapon-name",
+                safeString(
+                    weapon &&
+                    weapon.name,
+                    "不明"
+                )
+            )
+        );
+
+
+        if (
+            weapon &&
+            weapon.subWeapon &&
+            weapon.subWeapon.name
+        ) {
+
+            weaponInfo.append(
+                el(
+                    "div",
+                    "player-detail-subweapon",
+                    "サブ："
+                    +
+                    weapon.subWeapon.name
+                )
+            );
+
+        }
+
+
+        if (
+            weapon &&
+            weapon.specialWeapon &&
+            weapon.specialWeapon.name
+        ) {
+
+            weaponInfo.append(
+                el(
+                    "div",
+                    "player-detail-special",
+                    "スペシャル："
+                    +
+                    weapon.specialWeapon.name
+                )
+            );
+
+        }
+
+
+        weaponBox.append(
+            weaponInfo
+        );
+
+
+        const result =
+            player.result || {};
+
+
+        const combat =
+            el(
+                "div",
+                "player-detail-combat"
+            );
+
+
+        const combatValues = [
+
+            [
+                "キル",
+                result.kill
+            ],
+
+            [
+                "アシスト",
+                result.assist
+            ],
+
+            [
+                "デス",
+                result.death
+            ],
+
+            [
+                "スペシャル",
+                result.special
+            ],
+
+            [
+                "塗り",
+                player.paint
+            ]
+
+        ];
+
+
+        combatValues.forEach(
+            function (item) {
+
+                const box =
+                    el(
+                        "div",
+                        "player-detail-stat"
+                    );
+
+
+                box.append(
+                    el(
+                        "span",
+                        "player-detail-stat-label",
+                        item[0]
+                    ),
+                    el(
+                        "strong",
+                        "player-detail-stat-value",
+                        formatNumber(
+                            item[1]
+                        )
+                    )
+                );
+
+
+                combat.append(
+                    box
+                );
+
+            }
+        );
+
+
+        const gear =
+            el(
+                "div",
+                "gear-list"
+            );
+
+
+        gear.append(
+            createGearItem(
+                player.headGear,
+                "アタマ"
+            ),
+            createGearItem(
+                player.clothingGear,
+                "フク"
+            ),
+            createGearItem(
+                player.shoesGear,
+                "クツ"
+            )
+        );
+
+
+        panel.append(
+            header,
+            nameplate,
+            weaponBox,
+            combat,
+            gear
+        );
+
+
+        container.append(
+            panel
+        );
+
+
+        panel.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+
+    }
+
+
+    /* =======================================================
+       TEAM COLOR
+    ======================================================= */
+
+    function getTeamColor(
+        team
+    ) {
+
+        const color =
+            team &&
+            team.color;
+
+
+        if (!color) {
+
+            return "";
+
+        }
+
+
+        if (
+            typeof color === "string"
+        ) {
+
+            return color;
+
+        }
+
+
+        if (
+            typeof color === "object"
+        ) {
+
+            return (
+                color.cssColor ||
+                color.hex ||
+                color.color ||
+                color.main ||
+                color.value ||
+                color.rgb ||
+                ""
+            );
+
+        }
+
+
+        return "";
+
+    }
+
+
+    function applyTeamColor(
+        element,
+        team
+    ) {
+
+        if (!element) {
+            return;
+        }
+
+
+        const color =
+            getTeamColor(
+                team
+            );
+
+
+        if (!color) {
+            return;
+        }
+
+
+        /*
+         * 実データのcolorを
+         * CSS変数として渡す。
+         */
+
+        element.style.setProperty(
+            "--team-color",
+            color
+        );
+
+
+        element.style.setProperty(
+            "--ink-color",
+            color
+        );
+
+    }
+
+
+    /* ===================================================ImportButton"
                 >
                     <span class="material-symbols-rounded">
                         upload_file
