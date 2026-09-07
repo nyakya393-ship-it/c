@@ -1,245 +1,342 @@
 /* =========================================================
-   app.js
-   Battle Data Viewer
-   Application Controller
-========================================================= */
+   InkBoard
+   js/app.js
+   ========================================================= */
 
-(() => {
+(function () {
+
     "use strict";
 
 
-    /* =====================================================
-       APP STATE
-    ===================================================== */
+    /* =======================================================
+       STATE
+    ======================================================= */
 
     const AppState = {
+
         currentPage: "battle",
+
         previousPage: "battle",
+
         selectedBattleId: null,
+
         currentFilter: "all",
+
         initialized: false
+
     };
 
 
-    /* =====================================================
-       PAGE DEFINITIONS
-    ===================================================== */
-
-    const pages = {
-        battle: {
-            elementId: "battlePage",
-            title: "バトル"
-        },
-
-        battleDetail: {
-            elementId: "battleDetailPage",
-            title: "バトル詳細"
-        },
-
-        salmon: {
-            elementId: "salmonPage",
-            title: "サーモンラン"
-        },
-
-        statistics: {
-            elementId: "statisticsPage",
-            title: "統計"
-        },
-
-        settings: {
-            elementId: "settingsPage",
-            title: "設定"
-        }
-    };
-
-
-    /* =====================================================
+    /* =======================================================
        DOM
-    ===================================================== */
+    ======================================================= */
 
-    const DOM = {};
+    const DOM = {
 
+        pages: {},
+
+        headerTitle: null,
+
+        backButton: null,
+
+        settingsButton: null,
+
+        bottomNav: null
+
+    };
+
+
+    /* =======================================================
+       PAGE MAP
+    ======================================================= */
+
+    const PAGE_MAP = {
+
+        battle: "battlePage",
+
+        battleDetail: "battleDetailPage",
+
+        salmon: "salmonPage",
+
+        statistics: "statisticsPage",
+
+        settings: "settingsPage"
+
+    };
+
+
+    /* =======================================================
+       CACHE DOM
+    ======================================================= */
 
     function cacheDOM() {
 
-        DOM.pageTitle =
-            document.getElementById("pageTitle");
+        Object.keys(PAGE_MAP).forEach(function (pageName) {
+
+            DOM.pages[pageName] =
+                document.getElementById(PAGE_MAP[pageName]);
+
+        });
+
+
+        DOM.headerTitle =
+            document.getElementById("headerTitle");
+
 
         DOM.backButton =
             document.getElementById("backButton");
 
+
         DOM.settingsButton =
             document.getElementById("settingsButton");
 
-        DOM.bottomNavigation =
-            document.getElementById("bottomNavigation");
 
-        DOM.navItems =
-            document.querySelectorAll(".nav-item");
+        DOM.bottomNav =
+            document.getElementById("bottomNav");
 
-        DOM.pages =
-            {};
-
-        Object.keys(pages).forEach((key) => {
-
-            DOM.pages[key] =
-                document.getElementById(
-                    pages[key].elementId
-                );
-
-        });
     }
 
 
-    /* =====================================================
-       PAGE VISIBILITY
-    ===================================================== */
+    /* =======================================================
+       PAGE TITLE
+    ======================================================= */
 
-    function hideAllPages() {
+    function getPageTitle(pageName) {
 
-        Object.keys(DOM.pages).forEach((key) => {
+        switch (pageName) {
 
-            const page =
-                DOM.pages[key];
+            case "battle":
+                return "バトル";
+
+            case "battleDetail":
+                return "リザルト";
+
+            case "salmon":
+                return "サーモンラン";
+
+            case "statistics":
+                return "統計";
+
+            case "settings":
+                return "設定";
+
+            default:
+                return "InkBoard";
+
+        }
+
+    }
+
+
+    /* =======================================================
+       SHOW PAGE
+    ======================================================= */
+
+    function showPage(pageName) {
+
+        Object.keys(DOM.pages).forEach(function (name) {
+
+            const page = DOM.pages[name];
 
             if (!page) {
                 return;
             }
 
-            page.hidden = true;
-            page.classList.remove("active-page");
+            if (name === pageName) {
+
+                page.hidden = false;
+
+            } else {
+
+                page.hidden = true;
+
+            }
+
         });
+
     }
 
 
-    function showPage(pageName) {
-
-        const page =
-            DOM.pages[pageName];
-
-        if (!page) {
-            return;
-        }
-
-        hideAllPages();
-
-        page.hidden = false;
-        page.classList.add("active-page");
-
-        updateHeader(pageName);
-        updateBottomNavigation(pageName);
-    }
-
-
-    /* =====================================================
+    /* =======================================================
        HEADER
-    ===================================================== */
+    ======================================================= */
 
     function updateHeader(pageName) {
 
-        const page =
-            pages[pageName];
+        if (DOM.headerTitle) {
 
-        if (!page) {
-            return;
+            DOM.headerTitle.textContent =
+                getPageTitle(pageName);
+
         }
 
-        if (DOM.pageTitle) {
-            DOM.pageTitle.textContent =
-                page.title;
-        }
-
-        const isDetail =
-            pageName === "battleDetail";
-
-        const isSettings =
-            pageName === "settings";
 
         if (DOM.backButton) {
 
+            const shouldShowBack =
+                pageName === "battleDetail" ||
+                pageName === "settings";
+
             DOM.backButton.hidden =
-                !isDetail && !isSettings;
+                !shouldShowBack;
+
         }
+
 
         if (DOM.settingsButton) {
 
             DOM.settingsButton.hidden =
-                isSettings || isDetail;
+                pageName !== "battle";
+
         }
+
     }
 
 
-    /* =====================================================
-       BOTTOM NAVIGATION
-    ===================================================== */
+    /* =======================================================
+       BOTTOM NAV
+    ======================================================= */
 
-    function updateBottomNavigation(pageName) {
+    function updateBottomNav(pageName) {
 
-        const isMainPage =
-            pageName === "battle" ||
-            pageName === "salmon" ||
-            pageName === "statistics";
-
-        if (DOM.bottomNavigation) {
-            DOM.bottomNavigation.hidden =
-                !isMainPage;
-        }
-
-        DOM.navItems.forEach((item) => {
-
-            const target =
-                item.dataset.page;
-
-            const active =
-                target === pageName;
-
-            item.classList.toggle(
-                "active",
-                active
-            );
-        });
-    }
-
-
-    /* =====================================================
-       NAVIGATION
-    ===================================================== */
-
-    function navigateTo(pageName, options = {}) {
-
-        if (!pages[pageName]) {
+        if (!DOM.bottomNav) {
             return;
         }
 
-        const currentPage =
+
+        const items =
+            DOM.bottomNav.querySelectorAll("[data-page]");
+
+
+        items.forEach(function (item) {
+
+            const target =
+                item.getAttribute("data-page");
+
+            item.classList.toggle(
+                "active",
+                target === pageName
+            );
+
+        });
+
+
+        /*
+         * 詳細画面・設定画面では
+         * メインナビゲーションを表示しない
+         */
+
+        const hideNav =
+            pageName === "battleDetail" ||
+            pageName === "settings";
+
+
+        DOM.bottomNav.style.display =
+            hideNav ? "none" : "";
+
+    }
+
+
+    /* =======================================================
+       NAVIGATE
+    ======================================================= */
+
+    function navigateTo(pageName, options) {
+
+        options = options || {};
+
+
+        if (!PAGE_MAP[pageName]) {
+
+            console.warn(
+                "Unknown page:",
+                pageName
+            );
+
+            return;
+
+        }
+
+
+        const current =
             AppState.currentPage;
 
+
         if (
-            currentPage !== pageName &&
+            current !== pageName &&
             !options.skipHistory
         ) {
+
             AppState.previousPage =
-                currentPage;
+                current;
+
         }
+
 
         AppState.currentPage =
             pageName;
 
+
         showPage(pageName);
+
+        updateHeader(pageName);
+
+        updateBottomNav(pageName);
+
 
         window.scrollTo({
             top: 0,
-            behavior: "instant"
+            left: 0,
+            behavior: "auto"
         });
+
+
+        /*
+         * ページごとの更新処理
+         */
+
+        if (pageName === "battle") {
+
+            if (
+                window.BattleUI &&
+                typeof window.BattleUI.render === "function"
+            ) {
+
+                window.BattleUI.render();
+
+            }
+
+        }
+
+
+        if (pageName === "statistics") {
+
+            if (
+                window.BattleUI &&
+                typeof window.BattleUI.renderStatistics === "function"
+            ) {
+
+                window.BattleUI.renderStatistics();
+
+            }
+
+        }
+
     }
 
+
+    /* =======================================================
+       GO BACK
+    ======================================================= */
 
     function goBack() {
 
         if (
-            AppState.currentPage ===
-            "battleDetail"
+            AppState.currentPage === "battleDetail"
         ) {
+
+            AppState.selectedBattleId =
+                null;
 
             navigateTo(
                 "battle",
@@ -249,11 +346,12 @@
             );
 
             return;
+
         }
+
 
         if (
-            AppState.currentPage ===
-            "settings"
+            AppState.currentPage === "settings"
         ) {
 
             navigateTo(
@@ -264,21 +362,23 @@
             );
 
             return;
+
         }
 
+
         navigateTo(
-            AppState.previousPage ||
-            "battle",
+            AppState.previousPage || "battle",
             {
                 skipHistory: true
             }
         );
+
     }
 
 
-    /* =====================================================
-       BATTLE DETAIL
-    ===================================================== */
+    /* =======================================================
+       OPEN BATTLE DETAIL
+    ======================================================= */
 
     function openBattleDetail(battleId) {
 
@@ -286,46 +386,75 @@
             battleId === undefined ||
             battleId === null
         ) {
+
+            console.warn(
+                "Battle ID is missing."
+            );
+
             return;
+
         }
+
 
         AppState.selectedBattleId =
             String(battleId);
 
-        navigateTo("battleDetail");
 
-        /*
-         * battle.js が存在する場合、
-         * 詳細データの描画を依頼する。
-         */
+        AppState.previousPage =
+            AppState.currentPage;
+
+
+        navigateTo(
+            "battleDetail",
+            {
+                skipHistory: true
+            }
+        );
+
 
         if (
-            typeof window.Battle !==
-            "undefined" &&
-            typeof window.Battle.showDetail ===
-            "function"
+            window.Battle &&
+            typeof window.Battle.showDetail === "function"
         ) {
 
             window.Battle.showDetail(
-                AppState.selectedBattleId
+                String(battleId)
             );
+
+        } else {
+
+            console.warn(
+                "Battle.showDetail is not available."
+            );
+
         }
+
     }
 
 
-    /* =====================================================
-       SETTINGS
-    ===================================================== */
+    /* =======================================================
+       OPEN SETTINGS
+    ======================================================= */
 
     function openSettings() {
 
-        navigateTo("settings");
+        AppState.previousPage =
+            AppState.currentPage;
+
+
+        navigateTo(
+            "settings",
+            {
+                skipHistory: true
+            }
+        );
+
     }
 
 
-    /* =====================================================
-       BATTLE PAGE
-    ===================================================== */
+    /* =======================================================
+       OPEN BATTLE
+    ======================================================= */
 
     function openBattlePage() {
 
@@ -336,135 +465,80 @@
             }
         );
 
-        /*
-         * UI側に一覧の再描画を依頼。
-         */
-
-        if (
-            typeof window.BattleUI !==
-            "undefined" &&
-            typeof window.BattleUI.render ===
-            "function"
-        ) {
-
-            window.BattleUI.render();
-        }
     }
 
 
-    /* =====================================================
-       SALMON PAGE
-    ===================================================== */
+    /* =======================================================
+       OPEN SALMON
+    ======================================================= */
 
     function openSalmonPage() {
 
-        navigateTo("salmon");
+        navigateTo(
+            "salmon",
+            {
+                skipHistory: true
+            }
+        );
+
     }
 
 
-    /* =====================================================
-       STATISTICS PAGE
-    ===================================================== */
+    /* =======================================================
+       OPEN STATISTICS
+    ======================================================= */
 
     function openStatisticsPage() {
 
-        navigateTo("statistics");
+        navigateTo(
+            "statistics",
+            {
+                skipHistory: true
+            }
+        );
 
-        /*
-         * analyzer.js が実装された場合、
-         * 統計画面の描画を依頼。
-         */
-
-        if (
-            typeof window.Analyzer !==
-            "undefined" &&
-            typeof window.Analyzer.render ===
-            "function"
-        ) {
-
-            window.Analyzer.render();
-        }
     }
 
 
-    /* =====================================================
-       NAV ITEM HANDLER
-    ===================================================== */
+    /* =======================================================
+       NAVIGATION EVENTS
+    ======================================================= */
 
-    function handleNavigation(event) {
+    function bindNavigation() {
 
-        const item =
-            event.currentTarget;
+        if (DOM.bottomNav) {
 
-        const page =
-            item.dataset.page;
-
-        if (!page) {
-            return;
-        }
-
-        switch (page) {
-
-            case "battle":
-                openBattlePage();
-                break;
-
-            case "salmon":
-                openSalmonPage();
-                break;
-
-            case "statistics":
-                openStatisticsPage();
-                break;
-
-            default:
-                break;
-        }
-    }
-
-
-    /* =====================================================
-       BACK BUTTON
-    ===================================================== */
-
-    function handleBack() {
-
-        goBack();
-    }
-
-
-    /* =====================================================
-       SETTINGS BUTTON
-    ===================================================== */
-
-    function handleSettings() {
-
-        openSettings();
-    }
-
-
-    /* =====================================================
-       BROWSER BACK
-    ===================================================== */
-
-    function handlePopState() {
-
-        goBack();
-    }
-
-
-    /* =====================================================
-       GLOBAL EVENTS
-    ===================================================== */
-
-    function bindEvents() {
-
-        if (DOM.backButton) {
-
-            DOM.backButton.addEventListener(
+            DOM.bottomNav.addEventListener(
                 "click",
-                handleBack
+                function (event) {
+
+                    const button =
+                        event.target.closest(
+                            "[data-page]"
+                        );
+
+
+                    if (!button) {
+                        return;
+                    }
+
+
+                    const pageName =
+                        button.getAttribute(
+                            "data-page"
+                        );
+
+
+                    if (!pageName) {
+                        return;
+                    }
+
+
+                    navigateTo(pageName);
+
+                }
             );
+
         }
 
 
@@ -472,24 +546,167 @@
 
             DOM.settingsButton.addEventListener(
                 "click",
-                handleSettings
+                function () {
+
+                    openSettings();
+
+                }
             );
+
         }
 
 
-        DOM.navItems.forEach((item) => {
+        if (DOM.backButton) {
 
-            item.addEventListener(
+            DOM.backButton.addEventListener(
                 "click",
-                handleNavigation
+                function () {
+
+                    goBack();
+
+                }
             );
-        });
+
+        }
 
 
-        window.addEventListener(
-            "popstate",
-            handlePopState
+        /*
+         * BattleUIなどから発火される
+         * openBattleDetail イベント
+         */
+
+        document.addEventListener(
+            "openBattleDetail",
+            function (event) {
+
+                if (
+                    !event.detail ||
+                    event.detail.id === undefined
+                ) {
+
+                    return;
+
+                }
+
+
+                openBattleDetail(
+                    event.detail.id
+                );
+
+            }
         );
+
+    }
+
+
+    /* =======================================================
+       INITIALIZE
+    ======================================================= */
+
+    async function init() {
+
+        if (AppState.initialized) {
+            return;
+        }
+
+
+        cacheDOM();
+
+        bindNavigation();
+
+
+        AppState.initialized =
+            true;
+
+
+        /*
+         * 最初はバトル画面
+         */
+
+        navigateTo(
+            "battle",
+            {
+                skipHistory: true
+            }
+        );
+
+
+        /*
+         * BattleUIが存在する場合、
+         * 初期データを表示
+         */
+
+        if (
+            window.BattleUI &&
+            typeof window.BattleUI.render === "function"
+        ) {
+
+            try {
+
+                await window.BattleUI.render();
+
+            } catch (error) {
+
+                console.error(
+                    "BattleUI render error:",
+                    error
+                );
+
+            }
+
+        }
+
+    }
+
+
+    /* =======================================================
+       DOM READY
+    ======================================================= */
+
+    if (
+        document.readyState === "loading"
+    ) {
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            init
+        );
+
+    } else {
+
+        init();
+
+    }
+
+
+    /* =======================================================
+       PUBLIC API
+    ======================================================= */
+
+    window.App = {
+
+        state: AppState,
+
+        navigateTo: navigateTo,
+
+        goBack: goBack,
+
+        openBattleDetail: openBattleDetail,
+
+        openSettings: openSettings,
+
+        openBattlePage: openBattlePage,
+
+        openSalmonPage: openSalmonPage,
+
+        openStatisticsPage: openStatisticsPage,
+
+        init: init
+
+    };
+
+
+})();     );
 
 
         /*
