@@ -1,31 +1,31 @@
 {
     "name": "InkBoard",
     "short_name": "InkBoard",
-    "description": "Splatoon 3のバトル履歴・戦績・分析を確認できるWebアプリ",
-    "lang": "ja-JP",
+    "description": "Splatoon 3のバトル履歴・戦績を管理するWebアプリ",
+    "lang": "ja",
     "dir": "ltr",
-    "start_url": "./index.html",
+
+    "start_url": "./",
     "scope": "./",
+
     "display": "standalone",
     "orientation": "portrait",
-    "background_color": "#101114",
-    "theme_color": "#101114",
-    "categories": [
-        "games",
-        "utilities"
-    ],
+
+    "background_color": "#101010",
+    "theme_color": "#101010",
+
     "icons": [
         {
             "src": "assets/logo/icon-192.png",
             "sizes": "192x192",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
             "src": "assets/logo/icon-512.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         }
     ]
 }
