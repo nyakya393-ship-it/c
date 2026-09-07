@@ -1,28 +1,33 @@
-/* =========================================================
-   InkBoard
-   Battle History / Result Renderer
-   ========================================================= */
+// =========================
+// Battle
+// InkBoard
+// Battle History / Detail
+// =========================
 
-(function(){
+(function () {
 
     "use strict";
 
-    /* =====================================================
-       STATE
-    ===================================================== */
 
-    const state = {
-        battles: [],
-        currentBattle: null
-    };
+    // ========================================
+    // State
+    // ========================================
+
+    let battles = [];
+
+    let currentBattle = null;
 
 
-    /* =====================================================
-       BASIC HELPERS
-    ===================================================== */
+    // ========================================
+    // Utility
+    // ========================================
 
-    function safeString(value, fallback = ""){
-        if(value === null || value === undefined){
+    function safeString(value, fallback = "") {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
             return fallback;
         }
 
@@ -30,23 +35,26 @@
     }
 
 
-    function number(value, fallback = 0){
+    function number(value) {
+
         const n = Number(value);
 
         return Number.isFinite(n)
             ? n
-            : fallback;
+            : 0;
     }
 
 
-    function array(value){
+    function array(value) {
+
         return Array.isArray(value)
             ? value
             : [];
     }
 
 
-    function escapeHTML(value){
+    function escapeHTML(value) {
+
         return safeString(value)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -56,459 +64,1032 @@
     }
 
 
-    function formatNumber(value){
-        return number(value).toLocaleString("ja-JP");
+    function formatNumber(value) {
+
+        return number(value).toLocaleString(
+            "ja-JP"
+        );
     }
 
 
-    function formatPercent(value){
-        return (number(value) * 100).toFixed(1);
-    }
+    function getResultClass(result) {
+
+        const value =
+            safeString(result).toUpperCase();
 
 
-    function getResultClass(result){
-
-        const value = safeString(result).toUpperCase();
-
-        if(value === "WIN"){
+        if (value === "WIN") {
             return "win";
         }
 
-        if(value === "LOSE" || value === "LOSS"){
+
+        if (value === "LOSE") {
             return "lose";
         }
+
 
         return "unknown";
     }
 
 
-    function getResultText(result){
+    function getResultText(result) {
 
-        const value = safeString(result).toUpperCase();
+        const value =
+            safeString(result).toUpperCase();
 
-        if(value === "WIN"){
+
+        if (value === "WIN") {
             return "WIN";
         }
 
-        if(value === "LOSE" || value === "LOSS"){
+
+        if (value === "LOSE") {
             return "LOSE";
         }
 
-        if(value === "DRAW"){
-            return "DRAW";
-        }
 
-        return "—";
+        return value || "—";
     }
 
 
-    function formatPlayedTime(value){
+    function formatPlayedTime(value) {
 
-        if(!value){
+        if (!value) {
             return "日時不明";
         }
 
-        const date = new Date(value);
 
-        if(Number.isNaN(date.getTime())){
+        const date =
+            new Date(value);
+
+
+        if (
+            !Number.isFinite(
+                date.getTime()
+            )
+        ) {
             return safeString(value);
         }
 
-        return date.toLocaleString("ja-JP", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit"
-        });
+
+        const year =
+            date.getFullYear();
+
+
+        const month =
+            String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+
+
+        const day =
+            String(
+                date.getDate()
+            ).padStart(2, "0");
+
+
+        const hour =
+            String(
+                date.getHours()
+            ).padStart(2, "0");
+
+
+        const minute =
+            String(
+                date.getMinutes()
+            ).padStart(2, "0");
+
+
+        return (
+            year +
+            "/" +
+            month +
+            "/" +
+            day +
+            " " +
+            hour +
+            ":" +
+            minute
+        );
     }
 
 
-    function formatDuration(value){
+    function formatDuration(seconds) {
 
-        const seconds = number(value);
+        const value =
+            number(seconds);
 
-        if(seconds <= 0){
+
+        if (value <= 0) {
             return "—";
         }
 
-        const min = Math.floor(seconds / 60);
-        const sec = Math.floor(seconds % 60);
 
-        return `${min}:${String(sec).padStart(2, "0")}`;
-    }
-
-
-    /* =====================================================
-       IMAGE HELPERS
-    ===================================================== */
-
-    function imageURL(object){
-
-        if(!object){
-            return "";
-        }
-
-        if(typeof object === "string"){
-            return object;
-        }
-
-        if(object.url){
-            return object.url;
-        }
-
-        if(object.image && object.image.url){
-            return object.image.url;
-        }
-
-        if(object.thumbnailImage && object.thumbnailImage.url){
-            return object.thumbnailImage.url;
-        }
-
-        if(object.originalImage && object.originalImage.url){
-            return object.originalImage.url;
-        }
-
-        return "";
-    }
+        const minutes =
+            Math.floor(
+                value / 60
+            );
 
 
-    function getWeaponImage(weapon){
+        const sec =
+            value % 60;
 
-        if(!weapon){
-            return "";
-        }
 
         return (
-            imageURL(weapon.image) ||
-            imageURL(weapon.thumbnailImage) ||
-            imageURL(weapon.image2d) ||
-            imageURL(weapon.image3d) ||
-            ""
+            String(minutes) +
+            ":" +
+            String(sec).padStart(2, "0")
         );
     }
 
 
-    function getSpecialImage(weapon){
+    function getWeaponImage(weapon) {
 
-        if(!weapon){
+        if (!weapon) {
             return "";
         }
 
-        return imageURL(
-            weapon.specialWeapon
-                ? weapon.specialWeapon.image
-                : null
-        );
-    }
-
-
-    function getGearImage(gear){
-
-        if(!gear){
-            return "";
-        }
 
         return (
-            imageURL(gear.image) ||
-            imageURL(gear.thumbnailImage) ||
-            imageURL(gear.originalImage) ||
+            weapon.image ||
+            weapon.image2d ||
+            weapon.image3d ||
+            weapon.thumbnail ||
             ""
         );
     }
 
 
-    function getNameplateImage(player){
+    function getSpecialImage(weapon) {
 
-        if(!player){
+        if (
+            !weapon ||
+            !weapon.specialWeapon
+        ) {
             return "";
         }
 
-        const plate = player.nameplate;
 
-        if(!plate){
-            return "";
+        return safeString(
+            weapon.specialWeapon.image
+        );
+    }
+
+
+    function getSpecialName(weapon) {
+
+        if (
+            !weapon ||
+            !weapon.specialWeapon
+        ) {
+            return "—";
         }
 
-        return (
-            imageURL(plate.image) ||
-            imageURL(plate.thumbnailImage) ||
-            imageURL(plate.backgroundImage) ||
-            imageURL(plate.banner) ||
-            ""
-        );
-    }
-
-
-    function getWeaponName(player){
 
         return safeString(
-            player &&
-            player.weapon &&
-            player.weapon.name,
-            "ブキ不明"
+            weapon.specialWeapon.name,
+            "—"
         );
     }
 
 
-    function getSpecialName(player){
+    function getSubName(weapon) {
+
+        if (
+            !weapon ||
+            !weapon.subWeapon
+        ) {
+            return "—";
+        }
+
 
         return safeString(
-            player &&
-            player.weapon &&
-            player.weapon.specialWeapon &&
-            player.weapon.specialWeapon.name,
-            "スペシャル不明"
+            weapon.subWeapon.name,
+            "—"
         );
     }
 
 
-    function getSubName(player){
+    // ========================================
+    // DOM
+    // ========================================
 
-        return safeString(
-            player &&
-            player.weapon &&
-            player.weapon.subWeapon &&
-            player.weapon.subWeapon.name,
-            ""
-        );
+    function getElement(id) {
+
+        return document.getElementById(id);
+
     }
 
 
-    /* =====================================================
-       BATTLE DATA
-    ===================================================== */
+    function getBattleListElement() {
 
-    function getBattle(id){
+        return getElement("battleList");
 
-        return state.battles.find(
-            battle => safeString(battle.id) === safeString(id)
+    }
+
+
+    function getBattleDetailElement() {
+
+        return getElement("battleDetail");
+
+    }
+
+
+    // ========================================
+    // Load Battles
+    // ========================================
+
+    async function loadBattles() {
+
+        if (
+            !window.Storage ||
+            !window.Storage.getAllBattles
+        ) {
+
+            battles = [];
+
+            return battles;
+        }
+
+
+        battles =
+            await window.Storage.getAllBattles();
+
+
+        return battles;
+    }
+
+
+    // ========================================
+    // Get Battle
+    // ========================================
+
+    async function getBattle(id) {
+
+        if (!id) {
+            return null;
+        }
+
+
+        if (
+            window.Storage &&
+            window.Storage.getBattle
+        ) {
+
+            const stored =
+                await window.Storage.getBattle(
+                    id
+                );
+
+
+            if (stored) {
+                return stored;
+            }
+
+        }
+
+
+        return battles.find(
+            function (battle) {
+
+                return battle.id === id;
+
+            }
         ) || null;
     }
 
 
-    function getPlayerName(player){
+    // ========================================
+    // Battle Row
+    // ========================================
 
-        if(!player){
-            return "プレイヤー不明";
-        }
+    function createBattleRow(battle) {
 
-        return (
-            player.name ||
-            player.byname ||
-            player.callSign ||
-            "プレイヤー不明"
-        );
-    }
-
-
-    function getPlayerTitle(player){
-
-        if(!player){
-            return "";
-        }
-
-        return (
-            player.byname ||
-            player.callSign ||
-            ""
-        );
-    }
-
-
-    function getPlayerPaint(player){
-
-        if(!player){
-            return 0;
-        }
-
-        return number(player.paint);
-    }
-
-
-    function getPlayerResult(player){
-
-        if(!player || !player.result){
-            return {
-                kill: 0,
-                assist: 0,
-                death: 0,
-                special: 0,
-                noroshiTry: 0
-            };
-        }
-
-        return {
-            kill: number(player.result.kill),
-            assist: number(player.result.assist),
-            death: number(player.result.death),
-            special: number(player.result.special),
-            noroshiTry: number(player.result.noroshiTry)
-        };
-    }
-
-
-    function getTeamPlayers(team){
-
-        if(!team){
-            return [];
-        }
-
-        return array(team.players);
-    }
-
-
-    function getAllTeams(battle){
-
-        if(!battle){
-            return [];
-        }
-
-        if(Array.isArray(battle.teams) && battle.teams.length){
-            return battle.teams;
-        }
-
-        const teams = [];
-
-        if(battle.myTeam){
-            teams.push(battle.myTeam);
-        }
-
-        array(battle.otherTeams).forEach(team => {
-            teams.push(team);
-        });
-
-        return teams;
-    }
-
-
-    function getMyPlayer(battle){
-
-        if(!battle){
-            return null;
-        }
-
-        if(battle.player){
-            return battle.player;
-        }
-
-        const teams = getAllTeams(battle);
-
-        for(const team of teams){
-
-            const player = getTeamPlayers(team).find(
-                p => p.isMyself === true
+        const result =
+            getResultClass(
+                battle.judgement
             );
 
-            if(player){
-                return player;
-            }
-        }
 
-        return null;
+        const resultText =
+            getResultText(
+                battle.judgement
+            );
+
+
+        const ruleName =
+            battle.rule &&
+            battle.rule.name
+                ? battle.rule.name
+                : "ルール不明";
+
+
+        const stageName =
+            battle.stage &&
+            battle.stage.name
+                ? battle.stage.name
+                : "ステージ不明";
+
+
+        const player =
+            battle.player || {};
+
+
+        const weapon =
+            player.weapon || {};
+
+
+        const weaponImage =
+            getWeaponImage(
+                weapon
+            );
+
+
+        const weaponHTML =
+            weaponImage
+                ? `
+                    <img
+                        class="battle-row-weapon-image"
+                        src="${escapeHTML(weaponImage)}"
+                        alt=""
+                        loading="lazy"
+                    >
+                `
+                : `
+                    <span class="material-symbols-rounded">
+                        construction
+                    </span>
+                `;
+
+
+        const tricolorBadge =
+            battle.isTricolor
+                ? `
+                    <span class="battle-row-badge">
+                        トリカラ
+                    </span>
+                `
+                : "";
+
+
+        const row =
+            document.createElement("button");
+
+
+        row.type = "button";
+
+        row.className =
+            "battle-row " +
+            "battle-row-" +
+            result;
+
+
+        row.dataset.battleId =
+            safeString(battle.id);
+
+
+        row.innerHTML = `
+
+            <span class="battle-row-result">
+                <span class="battle-result-badge ${result}">
+                    ${escapeHTML(resultText)}
+                </span>
+
+                <span class="battle-row-time">
+                    ${escapeHTML(
+                        formatPlayedTime(
+                            battle.playedTime
+                        )
+                    )}
+                </span>
+            </span>
+
+
+            <span class="battle-row-rule">
+                <span class="battle-row-rule-name">
+                    ${escapeHTML(ruleName)}
+                </span>
+
+                ${tricolorBadge}
+            </span>
+
+
+            <span class="battle-row-stage">
+                ${escapeHTML(stageName)}
+            </span>
+
+
+            <span class="battle-row-weapon">
+                ${weaponHTML}
+
+                <span class="battle-row-weapon-name">
+                    ${escapeHTML(
+                        weapon.name || "—"
+                    )}
+                </span>
+            </span>
+
+        `;
+
+
+        row.addEventListener(
+            "click",
+            function () {
+
+                const battleId =
+                    row.dataset.battleId;
+
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "openBattleDetail",
+                        {
+                            detail: {
+                                battleId:
+                                    battleId
+                            }
+                        }
+                    )
+                );
+
+            }
+        );
+
+
+        return row;
     }
 
 
-    /* =====================================================
-       INK COLOR
-    ===================================================== */
+    // ========================================
+    // Empty List
+    // ========================================
 
-    function normalizeInkColor(color){
+    function renderEmptyList() {
 
-        if(!color){
+        const container =
+            getBattleListElement();
+
+
+        if (!container) {
+            return;
+        }
+
+
+        container.innerHTML = `
+
+            <div class="battle-empty">
+
+                <span class="material-symbols-rounded">
+                    sports_esports
+                </span>
+
+                <h2>
+                    バトル履歴がありません
+                </h2>
+
+                <p>
+                    ホラガイベイからJSONまたはZIPを
+                    インポートしてください。
+                </p>
+
+                <button
+                    type="button"
+                    class="primary-button"
+                    id="battleEmptyImportButton"
+                >
+                    <span class="material-symbols-rounded">
+                        upload_file
+                    </span>
+
+                    データをインポート
+                </button>
+
+            </div>
+
+        `;
+
+
+        const button =
+            getElement(
+                "battleEmptyImportButton"
+            );
+
+
+        if (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const input =
+                        getElement(
+                            "fileInput"
+                        );
+
+
+                    if (input) {
+                        input.click();
+                    }
+
+                }
+            );
+
+        }
+    }
+
+
+    // ========================================
+    // Render Battle List
+    // ========================================
+
+    async function renderList() {
+
+        const container =
+            getBattleListElement();
+
+
+        if (!container) {
+            return;
+        }
+
+
+        try {
+
+            await loadBattles();
+
+        } catch (error) {
+
+            console.error(
+                error
+            );
+
+
+            battles = [];
+
+        }
+
+
+        if (battles.length === 0) {
+
+            renderEmptyList();
+
+            updateSummary(
+                []
+            );
+
+            return;
+        }
+
+
+        container.innerHTML = "";
+
+
+        const fragment =
+            document.createDocumentFragment();
+
+
+        battles.forEach(
+            function (battle) {
+
+                fragment.appendChild(
+                    createBattleRow(
+                        battle
+                    )
+                );
+
+            }
+        );
+
+
+        container.appendChild(
+            fragment
+        );
+
+
+        updateSummary(
+            battles
+        );
+    }
+
+
+    // ========================================
+    // Summary
+    // ========================================
+
+    function updateSummary(list) {
+
+        const battlesList =
+            array(list);
+
+
+        let wins = 0;
+
+        let loses = 0;
+
+
+        battlesList.forEach(
+            function (battle) {
+
+                const result =
+                    safeString(
+                        battle.judgement
+                    ).toUpperCase();
+
+
+                if (result === "WIN") {
+
+                    wins++;
+
+                } else if (result === "LOSE") {
+
+                    loses++;
+
+                }
+
+            }
+        );
+
+
+        const judged =
+            wins + loses;
+
+
+        const rate =
+            judged
+                ? Math.round(
+                    wins /
+                    judged *
+                    1000
+                ) / 10
+                : 0;
+
+
+        const winElement =
+            getElement(
+                "battleWinRate"
+            );
+
+
+        const winsElement =
+            getElement(
+                "battleWins"
+            );
+
+
+        const losesElement =
+            getElement(
+                "battleLoses"
+            );
+
+
+        const totalElement =
+            getElement(
+                "battleTotal"
+            );
+
+
+        if (winElement) {
+
+            winElement.textContent =
+                rate + "%";
+
+        }
+
+
+        if (winsElement) {
+
+            winsElement.textContent =
+                String(wins);
+
+        }
+
+
+        if (losesElement) {
+
+            losesElement.textContent =
+                String(loses);
+
+        }
+
+
+        if (totalElement) {
+
+            totalElement.textContent =
+                String(battlesList.length);
+
+        }
+
+    }
+
+
+    // ========================================
+    // Team Color
+    // ========================================
+
+    function getTeamColorStyle(team) {
+
+        if (
+            !team ||
+            !team.color
+        ) {
             return "";
         }
 
-        if(typeof color === "string"){
+
+        const color =
+            team.color;
+
+
+        if (typeof color === "string") {
+
             return color;
+
         }
 
-        if(color.color){
-            return normalizeInkColor(color.color);
+
+        if (
+            color &&
+            typeof color === "object"
+        ) {
+
+            if (color.hex) {
+                return color.hex;
+            }
+
+
+            if (color.r !== undefined) {
+
+                const r =
+                    number(color.r);
+
+
+                const g =
+                    number(color.g);
+
+
+                const b =
+                    number(color.b);
+
+
+                return (
+                    "rgb(" +
+                    r +
+                    "," +
+                    g +
+                    "," +
+                    b +
+                    ")"
+                );
+
+            }
+
         }
 
-        if(color.a !== undefined){
-
-            const r = Math.round(number(color.r) * 255);
-            const g = Math.round(number(color.g) * 255);
-            const b = Math.round(number(color.b) * 255);
-            const a = number(color.a, 1);
-
-            return `rgba(${r},${g},${b},${a})`;
-        }
-
-        if(
-            color.r !== undefined &&
-            color.g !== undefined &&
-            color.b !== undefined
-        ){
-
-            const r = Math.round(number(color.r) * 255);
-            const g = Math.round(number(color.g) * 255);
-            const b = Math.round(number(color.b) * 255);
-
-            return `rgb(${r},${g},${b})`;
-        }
 
         return "";
     }
 
 
-    function getTeamInkColor(team, index = 0){
+    // ========================================
+    // Player Stats
+    // ========================================
 
-        if(team){
+    function createPlayerStats(player) {
 
-            const candidates = [
-                team.color,
-                team.inkColor,
-                team.ink,
-                team.paintColor
-            ];
+        const result =
+            player &&
+            player.result
+                ? player.result
+                : {};
 
-            for(const value of candidates){
 
-                const result = normalizeInkColor(value);
+        return `
 
-                if(result){
-                    return result;
-                }
-            }
-        }
+            <span class="player-stat">
+                <span class="player-stat-value">
+                    ${formatNumber(
+                        result.kill
+                    )}
+                </span>
+                <span class="player-stat-label">
+                    K
+                </span>
+            </span>
 
-        /*
-         * Fallback.
-         * 実際のHoragai Bayデータにcolorが存在する場合は
-         * 上の処理が優先される。
-         */
-        const fallback = [
-            "#c9ff00",
-            "#ff4fa3",
-            "#36d8ff",
-            "#ff8a3d"
-        ];
+            <span class="player-stat">
+                <span class="player-stat-value">
+                    ${formatNumber(
+                        result.assist
+                    )}
+                </span>
+                <span class="player-stat-label">
+                    A
+                </span>
+            </span>
 
-        return fallback[index % fallback.length];
+            <span class="player-stat">
+                <span class="player-stat-value">
+                    ${formatNumber(
+                        result.death
+                    )}
+                </span>
+                <span class="player-stat-label">
+                    D
+                </span>
+            </span>
+
+            <span class="player-stat">
+                <span class="player-stat-value">
+                    ${formatNumber(
+                        result.special
+                    )}
+                </span>
+                <span class="player-stat-label">
+                    SP
+                </span>
+            </span>
+
+        `;
     }
 
 
-    function getInkTextColor(background){
+    // ========================================
+    // Player Card
+    // ========================================
 
-        if(!background){
-            return "#ffffff";
+    function createPlayerCard(
+        player,
+        team
+    ) {
+
+        if (!player) {
+            return "";
         }
 
-        /*
-         * CSS変数等が入っている場合は白文字を使用。
-         */
-        if(background.startsWith("var(")){
-            return "#ffffff";
-        }
 
-        return "#ffffff";
+        const weapon =
+            player.weapon || {};
+
+
+        const weaponImage =
+            getWeaponImage(
+                weapon
+            );
+
+
+        const imageHTML =
+            weaponImage
+                ? `
+                    <img
+                        class="detail-player-weapon"
+                        src="${escapeHTML(
+                            weaponImage
+                        )}"
+                        alt=""
+                        loading="lazy"
+                    >
+                `
+                : `
+                    <span class="material-symbols-rounded detail-player-weapon-placeholder">
+                        construction
+                    </span>
+                `;
+
+
+        const myselfClass =
+            player.isMyself
+                ? " myself"
+                : "";
+
+
+        const myselfBadge =
+            player.isMyself
+                ? `
+                    <span class="player-myself">
+                        YOU
+                    </span>
+                `
+                : "";
+
+
+        const teamColor =
+            getTeamColorStyle(
+                team
+            );
+
+
+        const colorStyle =
+            teamColor
+                ? `style="--team-color:${escapeHTML(
+                    teamColor
+                )}"`
+                : "";
+
+
+        return `
+
+            <div
+                class="detail-player${myselfClass}"
+                ${colorStyle}
+            >
+
+                <div class="detail-player-weapon-wrap">
+                    ${imageHTML}
+                </div>
+
+
+                <div class="detail-player-main">
+
+                    <div class="detail-player-name">
+
+                        <span>
+                            ${escapeHTML(
+                                player.name ||
+                                "プレイヤー"
+                            )}
+                        </span>
+
+                        ${myselfBadge}
+
+                    </div>
+
+
+                    <div class="detail-player-byname">
+                        ${escapeHTML(
+                            player.byname ||
+                            player.callSign ||
+                            ""
+                        )}
+                    </div>
+
+
+                    <div class="detail-player-weapon-name">
+                        ${escapeHTML(
+                            weapon.name ||
+                            "ブキ不明"
+                        )}
+                    </div>
+
+                </div>
+
+
+                <div class="detail-player-stats">
+
+                    ${createPlayerStats(
+                        player
+                    )}
+
+                </div>
+
+            </div>
+
+        `;
     }
 
 
-    /* =====================================================
+    // ========================================
+    // Team Card
+    // ========================================
+
+    function createTeamCard(
+        team,
+        index,
+        isMyTeam
+    ) {
+
+        if (!team) {
+            return "";
+        }
+
+
+        const players =
+            array(team.players);
+
+
+        const teamColor =
+            getTeamColorStyle(
+                team
+            );
+
+
+        const colorStyle =
+            teamColor
+                ? `style="--team-color:${escapeHTML(
+                    teamColor
+                )}"`
+                : "";
+
+
+        const result =
+            safeString(
+                team.judgement
+            );
+
+
+        const resultClass =
+            getResultClass(
+                result
+=====================================================
        BATTLE ROW
     ===================================================== */
 
