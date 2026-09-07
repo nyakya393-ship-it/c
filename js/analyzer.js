@@ -1,127 +1,231 @@
-// =========================
-// Analyzer
-// InkBoard
-// Battle Statistics
-// =========================
+/* =========================================================
+   InkBoard
+   js/analyzer.js
+   ========================================================= */
 
 (function () {
 
     "use strict";
 
 
-    // ========================================
-    // Utility
-    // ========================================
+    /* =======================================================
+       UTILITY
+    ======================================================= */
 
-    function number(value) {
-
-        const n = Number(value);
-
-        return Number.isFinite(n) ? n : 0;
-    }
-
-
-    function safeArray(value) {
+    function arrayValue(value) {
 
         return Array.isArray(value)
             ? value
             : [];
+
     }
 
 
-    function percentage(value) {
+    function numberValue(value) {
 
-        return Math.round(
-            value * 1000
-        ) / 10;
+        const number =
+            Number(value);
+
+        return Number.isFinite(number)
+            ? number
+            : 0;
+
     }
 
 
-    function average(total, count) {
+    function safeString(value) {
 
-        if (!count) {
-            return 0;
+        if (
+            value === undefined ||
+            value === null
+        ) {
+
+            return "";
+
         }
 
-        return Math.round(
-            (total / count) * 10
-        ) / 10;
+        return String(value);
+
     }
 
 
-    function getResult(battle) {
+    function percent(
+        value,
+        total
+    ) {
 
-        return String(
-            battle &&
-            battle.judgement
-                ? battle.judgement
-                : ""
-        ).toUpperCase();
+        if (
+            !total
+        ) {
+
+            return 0;
+
+        }
+
+        return (
+            value / total
+        ) * 100;
+
     }
 
 
-    function isWin(battle) {
+    function average(
+        value,
+        count
+    ) {
 
-        return getResult(battle) === "WIN";
+        if (
+            !count
+        ) {
+
+            return 0;
+
+        }
+
+        return value / count;
+
     }
 
 
-    function isLose(battle) {
+    function getPlayers(
+        battle
+    ) {
 
-        return getResult(battle) === "LOSE";
+        const teams =
+            arrayValue(
+                battle &&
+                battle.teams
+            );
+
+
+        const players = [];
+
+
+        teams.forEach(
+            function (team) {
+
+                arrayValue(
+                    team.players
+                ).forEach(
+                    function (player) {
+
+                        players.push(
+                            player
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+        return players;
+
     }
 
 
-    function getPlayer(battle) {
+    function getMyPlayer(
+        battle
+    ) {
 
         if (
             battle &&
-            battle.player
+            battle.player &&
+            (
+                battle.player.isMyself ||
+                battle.player.weapon
+            )
         ) {
 
             return battle.player;
 
         }
 
-        return {
-            paint: 0,
-            weapon: {
-                id: "",
-                name: ""
-            },
-            result: {
-                kill: 0,
-                death: 0,
-                assist: 0,
-                special: 0
+
+        const players =
+            getPlayers(
+                battle
+            );
+
+
+        for (
+            let i = 0;
+            i < players.length;
+            i++
+        ) {
+
+            if (
+                players[i].isMyself
+            ) {
+
+                return players[i];
+
             }
-        };
+
+        }
+
+
+        return null;
+
     }
 
 
-    function getPlayerResult(battle) {
+    function getResult(
+        battle
+    ) {
 
-        const player =
-            getPlayer(battle);
+        return safeString(
+            battle &&
+            battle.judgement
+        )
+            .toUpperCase();
 
-
-        return player.result || {
-            kill: 0,
-            death: 0,
-            assist: 0,
-            special: 0
-        };
     }
 
 
-    // ========================================
-    // Basic Summary
-    // ========================================
+    function isWin(
+        battle
+    ) {
 
-    function summarize(battles) {
+        return (
+            getResult(battle) === "WIN"
+        );
 
-        const list =
-            safeArray(battles);
+    }
+
+
+    function isLose(
+        battle
+    ) {
+
+        const result =
+            getResult(
+                battle
+            );
+
+
+        return (
+            result === "LOSE" ||
+            result === "LOSS" ||
+            result === "DEFEAT"
+        );
+
+    }
+
+
+    /* =======================================================
+       BASIC SUMMARY
+    ======================================================= */
+
+    function summarize(
+        battles
+    ) {
+
+        battles =
+            arrayValue(
+                battles
+            );
 
 
         let wins = 0;
@@ -130,71 +234,110 @@
 
         let unknown = 0;
 
-        let kills = 0;
+        let totalKill = 0;
 
-        let assists = 0;
+        let totalAssist = 0;
 
-        let deaths = 0;
+        let totalDeath = 0;
 
-        let specials = 0;
+        let totalSpecial = 0;
 
-        let paint = 0;
-
-
-        list.forEach(function (battle) {
-
-            const result =
-                getResult(battle);
+        let totalPaint = 0;
 
 
-            if (result === "WIN") {
+        battles.forEach(
+            function (battle) {
 
-                wins++;
+                if (
+                    isWin(battle)
+                ) {
 
-            } else if (result === "LOSE") {
+                    wins++;
 
-                loses++;
+                } else if (
+                    isLose(battle)
+                ) {
 
-            } else {
+                    loses++;
 
-                unknown++;
+                } else {
+
+                    unknown++;
+
+                }
+
+
+                const player =
+                    getMyPlayer(
+                        battle
+                    );
+
+
+                if (!player) {
+                    return;
+                }
+
+
+                const result =
+                    player.result || {};
+
+
+                totalKill +=
+                    numberValue(
+                        result.kill
+                    );
+
+
+                totalAssist +=
+                    numberValue(
+                        result.assist
+                    );
+
+
+                totalDeath +=
+                    numberValue(
+                        result.death
+                    );
+
+
+                totalSpecial +=
+                    numberValue(
+                        result.special
+                    );
+
+
+                totalPaint +=
+                    numberValue(
+                        player.paint
+                    );
 
             }
-
-
-            const playerResult =
-                getPlayerResult(battle);
-
-
-            kills +=
-                number(playerResult.kill);
-
-            assists +=
-                number(playerResult.assist);
-
-            deaths +=
-                number(playerResult.death);
-
-            specials +=
-                number(playerResult.special);
-
-
-            paint +=
-                number(
-                    getPlayer(battle).paint
-                );
-
-        });
+        );
 
 
         const judged =
             wins + loses;
 
 
+        const kd =
+            totalDeath > 0
+                ? (
+                    (
+                        totalKill +
+                        totalAssist
+                    ) /
+                    totalDeath
+                )
+                : (
+                    totalKill +
+                    totalAssist
+                );
+
+
         return {
 
             battles:
-                list.length,
+                battles.length,
 
             wins:
                 wins,
@@ -209,366 +352,783 @@
                 judged,
 
             winRate:
-                judged
-                    ? percentage(wins / judged)
-                    : 0,
+                percent(
+                    wins,
+                    judged
+                ),
 
             loseRate:
-                judged
-                    ? percentage(loses / judged)
-                    : 0,
+                percent(
+                    loses,
+                    judged
+                ),
 
-            totalKills:
-                kills,
+            totalKill:
+                totalKill,
 
-            totalAssists:
-                assists,
+            totalAssist:
+                totalAssist,
 
-            totalDeaths:
-                deaths,
+            totalDeath:
+                totalDeath,
 
-            totalSpecials:
-                specials,
+            totalSpecial:
+                totalSpecial,
 
             totalPaint:
-                paint,
+                totalPaint,
 
-            averageKills:
-                average(kills, list.length),
+            averageKill:
+                average(
+                    totalKill,
+                    battles.length
+                ),
 
-            averageAssists:
-                average(assists, list.length),
+            averageAssist:
+                average(
+                    totalAssist,
+                    battles.length
+                ),
 
-            averageDeaths:
-                average(deaths, list.length),
+            averageDeath:
+                average(
+                    totalDeath,
+                    battles.length
+                ),
 
-            averageSpecials:
-                average(specials, list.length),
+            averageSpecial:
+                average(
+                    totalSpecial,
+                    battles.length
+                ),
 
             averagePaint:
-                average(paint, list.length),
+                average(
+                    totalPaint,
+                    battles.length
+                ),
 
             kd:
-                deaths
-                    ? Math.round(
-                        ((kills + assists) / deaths) * 100
-                    ) / 100
-                    : kills + assists
+                kd
 
         };
+
     }
 
 
-    // ========================================
-    // Result Distribution
-    // ========================================
+    /* =======================================================
+       RESULT DISTRIBUTION
+    ======================================================= */
 
-    function resultDistribution(battles) {
+    function resultDistribution(
+        battles
+    ) {
 
-        const list =
-            safeArray(battles);
-
-
-        let win = 0;
-
-        let lose = 0;
-
-        let other = 0;
+        battles =
+            arrayValue(
+                battles
+            );
 
 
-        list.forEach(function (battle) {
-
-            const result =
-                getResult(battle);
+        const result = {};
 
 
-            if (result === "WIN") {
-
-                win++;
-
-            } else if (result === "LOSE") {
-
-                lose++;
-
-            } else {
-
-                other++;
-
-            }
-
-        });
-
-
-        return {
-
-            win: win,
-
-            lose: lose,
-
-            other: other,
-
-            total:
-                win +
-                lose +
-                other
-
-        };
-    }
-
-
-    // ========================================
-    // Group Helper
-    // ========================================
-
-    function groupBy(battles, getKey) {
-
-        const groups = new Map();
-
-
-        safeArray(battles).forEach(
+        battles.forEach(
             function (battle) {
 
                 const key =
-                    String(
-                        getKey(battle) || "unknown"
-                    );
+                    getResult(
+                        battle
+                    ) || "UNKNOWN";
 
 
-                if (!groups.has(key)) {
+                if (
+                    !result[key]
+                ) {
 
-                    groups.set(
-                        key,
-                        []
-                    );
+                    result[key] = 0;
 
                 }
 
 
-                groups
-                    .get(key)
-                    .push(battle);
+                result[key]++;
 
             }
         );
-
-
-        return groups;
-    }
-
-
-    // ========================================
-    // Group Statistics
-    // ========================================
-
-    function analyzeGroups(battles, getKey, getName) {
-
-        const groups =
-            groupBy(
-                battles,
-                getKey
-            );
-
-
-        const result = [];
-
-
-        groups.forEach(
-            function (items, key) {
-
-                const summary =
-                    summarize(items);
-
-
-                result.push({
-
-                    key:
-                        key,
-
-                    name:
-                        getName
-                            ? getName(items[0], key)
-                            : key,
-
-                    count:
-                        items.length,
-
-                    wins:
-                        summary.wins,
-
-                    loses:
-                        summary.loses,
-
-                    winRate:
-                        summary.winRate,
-
-                    averageKills:
-                        summary.averageKills,
-
-                    averageAssists:
-                        summary.averageAssists,
-
-                    averageDeaths:
-                        summary.averageDeaths,
-
-                    averageSpecials:
-                        summary.averageSpecials,
-
-                    averagePaint:
-                        summary.averagePaint,
-
-                    kd:
-                        summary.kd,
-
-                    battles:
-                        items
-
-                });
-
-            }
-        );
-
-
-        result.sort(function (a, b) {
-
-            if (b.count !== a.count) {
-
-                return b.count - a.count;
-
-            }
-
-            return b.winRate - a.winRate;
-
-        });
 
 
         return result;
+
     }
 
 
-    // ========================================
-    // Rule Analysis
-    // ========================================
+    /* =======================================================
+       GENERIC GROUP
+    ======================================================= */
 
-    function analyzeRules(battles) {
+    function groupBy(
+        battles,
+        getKey,
+        getName
+    ) {
 
-        return analyzeGroups(
+        battles =
+            arrayValue(
+                battles
+            );
+
+
+        const groups =
+            {};
+
+
+        battles.forEach(
+            function (battle) {
+
+                let key =
+                    getKey(
+                        battle
+                    );
+
+
+                if (
+                    key === undefined ||
+                    key === null ||
+                    key === ""
+                ) {
+
+                    key =
+                        "unknown";
+
+                }
+
+
+                key =
+                    String(
+                        key
+                    );
+
+
+                if (
+                    !groups[key]
+                ) {
+
+                    groups[key] = {
+
+                        key:
+                            key,
+
+                        name:
+                            getName
+                                ? getName(
+                                    battle
+                                )
+                                : key,
+
+                        battles: [],
+
+                        count: 0,
+
+                        wins: 0,
+
+                        loses: 0,
+
+                        unknown: 0,
+
+                        kill: 0,
+
+                        assist: 0,
+
+                        death: 0,
+
+                        special: 0,
+
+                        paint: 0
+
+                    };
+
+                }
+
+
+                const group =
+                    groups[key];
+
+
+                group.battles.push(
+                    battle
+                );
+
+
+                group.count++;
+
+
+                if (
+                    isWin(battle)
+                ) {
+
+                    group.wins++;
+
+                } else if (
+                    isLose(battle)
+                ) {
+
+                    group.loses++;
+
+                } else {
+
+                    group.unknown++;
+
+                }
+
+
+                const player =
+                    getMyPlayer(
+                        battle
+                    );
+
+
+                if (!player) {
+                    return;
+                }
+
+
+                const result =
+                    player.result || {};
+
+
+                group.kill +=
+                    numberValue(
+                        result.kill
+                    );
+
+
+                group.assist +=
+                    numberValue(
+                        result.assist
+                    );
+
+
+                group.death +=
+                    numberValue(
+                        result.death
+                    );
+
+
+                group.special +=
+                    numberValue(
+                        result.special
+                    );
+
+
+                group.paint +=
+                    numberValue(
+                        player.paint
+                    );
+
+            }
+        );
+
+
+        return Object.keys(
+            groups
+        ).map(
+            function (key) {
+
+                const group =
+                    groups[key];
+
+
+                const judged =
+                    group.wins +
+                    group.loses;
+
+
+                return {
+
+                    key:
+                        group.key,
+
+                    name:
+                        group.name,
+
+                    count:
+                        group.count,
+
+                    wins:
+                        group.wins,
+
+                    loses:
+                        group.loses,
+
+                    unknown:
+                        group.unknown,
+
+                    winRate:
+                        percent(
+                            group.wins,
+                            judged
+                        ),
+
+                    loseRate:
+                        percent(
+                            group.loses,
+                            judged
+                        ),
+
+                    kill:
+                        group.kill,
+
+                    assist:
+                        group.assist,
+
+                    death:
+                        group.death,
+
+                    special:
+                        group.special,
+
+                    paint:
+                        group.paint,
+
+                    averageKill:
+                        average(
+                            group.kill,
+                            group.count
+                        ),
+
+                    averageAssist:
+                        average(
+                            group.assist,
+                            group.count
+                        ),
+
+                    averageDeath:
+                        average(
+                            group.death,
+                            group.count
+                        ),
+
+                    averageSpecial:
+                        average(
+                            group.special,
+                            group.count
+                        ),
+
+                    averagePaint:
+                        average(
+                            group.paint,
+                            group.count
+                        )
+
+                };
+
+            }
+        );
+
+    }
+
+
+    /* =======================================================
+       RULE ANALYSIS
+    ======================================================= */
+
+    function analyzeRules(
+        battles
+    ) {
+
+        return groupBy(
 
             battles,
 
             function (battle) {
 
-                return battle &&
-                    battle.rule
-                    ? battle.rule.code
-                    : "";
+                return (
+                    battle.rule &&
+                    (
+                        battle.rule.code ||
+                        battle.rule.id ||
+                        battle.rule.name
+                    )
+                );
 
             },
 
             function (battle) {
 
-                return battle &&
-                    battle.rule
-                    ? battle.rule.name
-                    : "不明";
+                return (
+                    battle.rule &&
+                    battle.rule.name
+                ) || "不明";
 
             }
 
         );
+
     }
 
 
-    // ========================================
-    // Mode Analysis
-    // ========================================
+    /* =======================================================
+       MODE ANALYSIS
+    ======================================================= */
 
-    function analyzeModes(battles) {
+    function analyzeModes(
+        battles
+    ) {
 
-        return analyzeGroups(
+        return groupBy(
 
             battles,
 
             function (battle) {
 
-                return battle &&
-                    battle.mode
-                    ? battle.mode.mode
-                    : "";
+                return (
+                    battle.mode &&
+                    (
+                        battle.mode.code ||
+                        battle.mode.id ||
+                        battle.mode.name
+                    )
+                );
 
             },
 
             function (battle) {
 
-                return battle &&
-                    battle.mode
-                    ? battle.mode.name
-                    : "不明";
+                return (
+                    battle.mode &&
+                    battle.mode.name
+                ) || "不明";
 
             }
 
         );
+
     }
 
 
-    // ========================================
-    // Stage Analysis
-    // ========================================
+    /* =======================================================
+       STAGE ANALYSIS
+    ======================================================= */
 
-    function analyzeStages(battles) {
+    function analyzeStages(
+        battles
+    ) {
 
-        return analyzeGroups(
+        return groupBy(
 
             battles,
 
             function (battle) {
 
-                return battle &&
-                    battle.stage
-                    ? battle.stage.id ||
+                return (
+                    battle.stage &&
+                    (
+                        battle.stage.id ||
                         battle.stage.name
-                    : "";
+                    )
+                );
 
             },
 
             function (battle) {
 
-                return battle &&
-                    battle.stage
-                    ? battle.stage.name
-                    : "不明";
+                return (
+                    battle.stage &&
+                    battle.stage.name
+                ) || "不明";
 
             }
 
         );
+
     }
 
 
-    // ========================================
-    // Weapon Analysis
-    // ========================================
+    /* =======================================================
+       WEAPON ANALYSIS
+    ======================================================= */
 
-    function analyzeWeapons(battles) {
+    function analyzeWeapons(
+        battles
+    ) {
 
-        return analyzeGroups(
+        return groupBy(
 
             battles,
 
             function (battle) {
 
                 const player =
-                    getPlayer(battle);
+                    getMyPlayer(
+                        battle
+                    );
 
 
-                const weapon =
-                    player.weapon || {};
-
-
-                return weapon.id ||
-                    weapon.name ||
-                    "";
+                return (
+                    player &&
+                    player.weapon &&
+                    (
+                        player.weapon.id ||
+                        player.weapon.name
+                    )
+                ) || "unknown";
 
             },
 
             function (battle) {
+
+                const player =
+                    getMyPlayer(
+                        battle
+                    );
+
+
+                return (
+                    player &&
+                    player.weapon &&
+                    player.weapon.name
+                ) || "不明";
+
+            }
+
+        );
+
+    }
+
+
+    /* =======================================================
+       TRICOLOR ANALYSIS
+    ======================================================= */
+
+    function analyzeTricolor(
+        battles
+    ) {
+
+        battles =
+            arrayValue(
+                battles
+            );
+
+
+        const normal =
+            battles.filter(
+                function (battle) {
+
+                    return !battle.isTricolor;
+
+                }
+            );
+
+
+        const tricolor =
+            battles.filter(
+                function (battle) {
+
+                    return Boolean(
+                        battle.isTricolor
+                    );
+
+                }
+            );
+
+
+        const roles =
+            groupBy(
+
+                tricolor,
+
+                function (battle) {
+
+                    const team =
+                        battle.myTeam ||
+                        {};
+
+
+                    return (
+                        team.tricolorRole ||
+                        "UNKNOWN"
+                    );
+
+                },
+
+                function (battle) {
+
+                    const team =
+                        battle.myTeam ||
+                        {};
+
+
+                    return (
+                        team.tricolorRole ||
+                        "不明"
+                    );
+
+                }
+
+            );
+
+
+        return {
+
+            total:
+                battles.length,
+
+            normal:
+                summarize(
+                    normal
+                ),
+
+            tricolor:
+                summarize(
+                    tricolor
+                ),
+
+            tricolorCount:
+                tricolor.length,
+
+            roles:
+                roles
+
+        };
+
+    }
+
+
+    /* =======================================================
+       PAINT ANALYSIS
+    ======================================================= */
+
+    function analyzePaint(
+        battles
+    ) {
+
+        battles =
+            arrayValue(
+                battles
+            );
+
+
+        let total = 0;
+
+        let max = 0;
+
+        let min = null;
+
+
+        battles.forEach(
+            function (battle) {
+
+                const player =
+                    getMyPlayer(
+                        battle
+                    );
+
+
+                const paint =
+                    player
+                        ? numberValue(
+                            player.paint
+                        )
+                        : 0;
+
+
+                total += paint;
+
+
+                if (
+                    paint > max
+                ) {
+
+                    max = paint;
+
+                }
+
+
+                if (
+                    min === null ||
+                    paint < min
+                ) {
+
+                    min = paint;
+
+                }
+
+            }
+        );
+
+
+        return {
+
+            total:
+                total,
+
+            average:
+                average(
+                    total,
+                    battles.length
+                ),
+
+            max:
+                max,
+
+            min:
+                min === null
+                    ? 0
+                    : min
+
+        };
+
+    }
+
+
+    /* =======================================================
+       COMBAT ANALYSIS
+    ======================================================= */
+
+    function analyzeCombat(
+        battles
+    ) {
+
+        battles =
+            arrayValue(
+                battles
+            );
+
+
+        let kill = 0;
+
+        let assist = 0;
+
+        let death = 0;
+
+
+        battles.forEach(
+            function (battle) {
+
+                const player =
+                    getMyPlayer(
+                        battle
+                    );
+
+
+                if (!player) {
+                    return;
+                }
+
+
+                const result =
+                    player.result || {};
+
+
+                kill +=
+                    numberValue(
+                        result.kill
+                    );
+
+
+                assist +=
+                    numberValue(
+                  e) {
 
                 const player =
                     getPlayer(battle);
