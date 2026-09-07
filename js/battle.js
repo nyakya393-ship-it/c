@@ -1,33 +1,28 @@
-// =========================
-// Battle
-// InkBoard
-// Battle History / Detail
-// =========================
+/* =========================================================
+   InkBoard
+   Battle History / Result Renderer
+   ========================================================= */
 
-(function () {
+(function(){
 
     "use strict";
 
+    /* =====================================================
+       STATE
+    ===================================================== */
 
-    // ========================================
-    // State
-    // ========================================
-
-    let battles = [];
-
-    let currentBattle = null;
+    const state = {
+        battles: [],
+        currentBattle: null
+    };
 
 
-    // ========================================
-    // Utility
-    // ========================================
+    /* =====================================================
+       BASIC HELPERS
+    ===================================================== */
 
-    function safeString(value, fallback = "") {
-
-        if (
-            value === null ||
-            value === undefined
-        ) {
+    function safeString(value, fallback = ""){
+        if(value === null || value === undefined){
             return fallback;
         }
 
@@ -35,26 +30,23 @@
     }
 
 
-    function number(value) {
-
+    function number(value, fallback = 0){
         const n = Number(value);
 
         return Number.isFinite(n)
             ? n
-            : 0;
+            : fallback;
     }
 
 
-    function array(value) {
-
+    function array(value){
         return Array.isArray(value)
             ? value
             : [];
     }
 
 
-    function escapeHTML(value) {
-
+    function escapeHTML(value){
         return safeString(value)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -64,478 +56,614 @@
     }
 
 
-    function formatNumber(value) {
-
-        return number(value).toLocaleString(
-            "ja-JP"
-        );
+    function formatNumber(value){
+        return number(value).toLocaleString("ja-JP");
     }
 
 
-    function getResultClass(result) {
+    function formatPercent(value){
+        return (number(value) * 100).toFixed(1);
+    }
 
-        const value =
-            safeString(result).toUpperCase();
 
+    function getResultClass(result){
 
-        if (value === "WIN") {
+        const value = safeString(result).toUpperCase();
+
+        if(value === "WIN"){
             return "win";
         }
 
-
-        if (value === "LOSE") {
+        if(value === "LOSE" || value === "LOSS"){
             return "lose";
         }
-
 
         return "unknown";
     }
 
 
-    function getResultText(result) {
+    function getResultText(result){
 
-        const value =
-            safeString(result).toUpperCase();
+        const value = safeString(result).toUpperCase();
 
-
-        if (value === "WIN") {
+        if(value === "WIN"){
             return "WIN";
         }
 
-
-        if (value === "LOSE") {
+        if(value === "LOSE" || value === "LOSS"){
             return "LOSE";
         }
 
+        if(value === "DRAW"){
+            return "DRAW";
+        }
 
-        return value || "—";
+        return "—";
     }
 
 
-    function formatPlayedTime(value) {
+    function formatPlayedTime(value){
 
-        if (!value) {
+        if(!value){
             return "日時不明";
         }
 
+        const date = new Date(value);
 
-        const date =
-            new Date(value);
-
-
-        if (
-            !Number.isFinite(
-                date.getTime()
-            )
-        ) {
+        if(Number.isNaN(date.getTime())){
             return safeString(value);
         }
 
-
-        const year =
-            date.getFullYear();
-
-
-        const month =
-            String(
-                date.getMonth() + 1
-            ).padStart(2, "0");
-
-
-        const day =
-            String(
-                date.getDate()
-            ).padStart(2, "0");
-
-
-        const hour =
-            String(
-                date.getHours()
-            ).padStart(2, "0");
-
-
-        const minute =
-            String(
-                date.getMinutes()
-            ).padStart(2, "0");
-
-
-        return (
-            year +
-            "/" +
-            month +
-            "/" +
-            day +
-            " " +
-            hour +
-            ":" +
-            minute
-        );
+        return date.toLocaleString("ja-JP", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
     }
 
 
-    function formatDuration(seconds) {
+    function formatDuration(value){
 
-        const value =
-            number(seconds);
+        const seconds = number(value);
 
-
-        if (value <= 0) {
+        if(seconds <= 0){
             return "—";
         }
 
+        const min = Math.floor(seconds / 60);
+        const sec = Math.floor(seconds % 60);
 
-        const minutes =
-            Math.floor(
-                value / 60
-            );
-
-
-        const sec =
-            value % 60;
-
-
-        return (
-            String(minutes) +
-            ":" +
-            String(sec).padStart(2, "0")
-        );
+        return `${min}:${String(sec).padStart(2, "0")}`;
     }
 
 
-    function getWeaponImage(weapon) {
+    /* =====================================================
+       IMAGE HELPERS
+    ===================================================== */
 
-        if (!weapon) {
+    function imageURL(object){
+
+        if(!object){
             return "";
         }
 
+        if(typeof object === "string"){
+            return object;
+        }
+
+        if(object.url){
+            return object.url;
+        }
+
+        if(object.image && object.image.url){
+            return object.image.url;
+        }
+
+        if(object.thumbnailImage && object.thumbnailImage.url){
+            return object.thumbnailImage.url;
+        }
+
+        if(object.originalImage && object.originalImage.url){
+            return object.originalImage.url;
+        }
+
+        return "";
+    }
+
+
+    function getWeaponImage(weapon){
+
+        if(!weapon){
+            return "";
+        }
 
         return (
-            weapon.image ||
-            weapon.image2d ||
-            weapon.image3d ||
-            weapon.thumbnail ||
+            imageURL(weapon.image) ||
+            imageURL(weapon.thumbnailImage) ||
+            imageURL(weapon.image2d) ||
+            imageURL(weapon.image3d) ||
             ""
         );
     }
 
 
-    function getSpecialImage(weapon) {
+    function getSpecialImage(weapon){
 
-        if (
-            !weapon ||
-            !weapon.specialWeapon
-        ) {
+        if(!weapon){
             return "";
         }
 
-
-        return safeString(
-            weapon.specialWeapon.image
+        return imageURL(
+            weapon.specialWeapon
+                ? weapon.specialWeapon.image
+                : null
         );
     }
 
 
-    function getSpecialName(weapon) {
+    function getGearImage(gear){
 
-        if (
-            !weapon ||
-            !weapon.specialWeapon
-        ) {
-            return "—";
+        if(!gear){
+            return "";
         }
 
-
-        return safeString(
-            weapon.specialWeapon.name,
-            "—"
+        return (
+            imageURL(gear.image) ||
+            imageURL(gear.thumbnailImage) ||
+            imageURL(gear.originalImage) ||
+            ""
         );
     }
 
 
-    function getSubName(weapon) {
+    function getNameplateImage(player){
 
-        if (
-            !weapon ||
-            !weapon.subWeapon
-        ) {
-            return "—";
+        if(!player){
+            return "";
         }
 
+        const plate = player.nameplate;
 
-        return safeString(
-            weapon.subWeapon.name,
-            "—"
+        if(!plate){
+            return "";
+        }
+
+        return (
+            imageURL(plate.image) ||
+            imageURL(plate.thumbnailImage) ||
+            imageURL(plate.backgroundImage) ||
+            imageURL(plate.banner) ||
+            ""
         );
     }
 
 
-    // ========================================
-    // DOM
-    // ========================================
+    function getWeaponName(player){
 
-    function getElement(id) {
-
-        return document.getElementById(id);
-
+        return safeString(
+            player &&
+            player.weapon &&
+            player.weapon.name,
+            "ブキ不明"
+        );
     }
 
 
-    function getBattleListElement() {
+    function getSpecialName(player){
 
-        return getElement("battleList");
-
+        return safeString(
+            player &&
+            player.weapon &&
+            player.weapon.specialWeapon &&
+            player.weapon.specialWeapon.name,
+            "スペシャル不明"
+        );
     }
 
 
-    function getBattleDetailElement() {
+    function getSubName(player){
 
-        return getElement("battleDetail");
-
+        return safeString(
+            player &&
+            player.weapon &&
+            player.weapon.subWeapon &&
+            player.weapon.subWeapon.name,
+            ""
+        );
     }
 
 
-    // ========================================
-    // Load Battles
-    // ========================================
+    /* =====================================================
+       BATTLE DATA
+    ===================================================== */
 
-    async function loadBattles() {
+    function getBattle(id){
 
-        if (
-            !window.Storage ||
-            !window.Storage.getAllBattles
-        ) {
-
-            battles = [];
-
-            return battles;
-        }
-
-
-        battles =
-            await window.Storage.getAllBattles();
-
-
-        return battles;
-    }
-
-
-    // ========================================
-    // Get Battle
-    // ========================================
-
-    async function getBattle(id) {
-
-        if (!id) {
-            return null;
-        }
-
-
-        if (
-            window.Storage &&
-            window.Storage.getBattle
-        ) {
-
-            const stored =
-                await window.Storage.getBattle(
-                    id
-                );
-
-
-            if (stored) {
-                return stored;
-            }
-
-        }
-
-
-        return battles.find(
-            function (battle) {
-
-                return battle.id === id;
-
-            }
+        return state.battles.find(
+            battle => safeString(battle.id) === safeString(id)
         ) || null;
     }
 
 
-    // ========================================
-    // Battle Row
-    // ========================================
+    function getPlayerName(player){
 
-    function createBattleRow(battle) {
+        if(!player){
+            return "プレイヤー不明";
+        }
 
-        const result =
-            getResultClass(
-                battle.judgement
+        return (
+            player.name ||
+            player.byname ||
+            player.callSign ||
+            "プレイヤー不明"
+        );
+    }
+
+
+    function getPlayerTitle(player){
+
+        if(!player){
+            return "";
+        }
+
+        return (
+            player.byname ||
+            player.callSign ||
+            ""
+        );
+    }
+
+
+    function getPlayerPaint(player){
+
+        if(!player){
+            return 0;
+        }
+
+        return number(player.paint);
+    }
+
+
+    function getPlayerResult(player){
+
+        if(!player || !player.result){
+            return {
+                kill: 0,
+                assist: 0,
+                death: 0,
+                special: 0,
+                noroshiTry: 0
+            };
+        }
+
+        return {
+            kill: number(player.result.kill),
+            assist: number(player.result.assist),
+            death: number(player.result.death),
+            special: number(player.result.special),
+            noroshiTry: number(player.result.noroshiTry)
+        };
+    }
+
+
+    function getTeamPlayers(team){
+
+        if(!team){
+            return [];
+        }
+
+        return array(team.players);
+    }
+
+
+    function getAllTeams(battle){
+
+        if(!battle){
+            return [];
+        }
+
+        if(Array.isArray(battle.teams) && battle.teams.length){
+            return battle.teams;
+        }
+
+        const teams = [];
+
+        if(battle.myTeam){
+            teams.push(battle.myTeam);
+        }
+
+        array(battle.otherTeams).forEach(team => {
+            teams.push(team);
+        });
+
+        return teams;
+    }
+
+
+    function getMyPlayer(battle){
+
+        if(!battle){
+            return null;
+        }
+
+        if(battle.player){
+            return battle.player;
+        }
+
+        const teams = getAllTeams(battle);
+
+        for(const team of teams){
+
+            const player = getTeamPlayers(team).find(
+                p => p.isMyself === true
             );
 
+            if(player){
+                return player;
+            }
+        }
 
-        const resultText =
-            getResultText(
-                battle.judgement
-            );
+        return null;
+    }
 
 
-        const ruleName =
+    /* =====================================================
+       INK COLOR
+    ===================================================== */
+
+    function normalizeInkColor(color){
+
+        if(!color){
+            return "";
+        }
+
+        if(typeof color === "string"){
+            return color;
+        }
+
+        if(color.color){
+            return normalizeInkColor(color.color);
+        }
+
+        if(color.a !== undefined){
+
+            const r = Math.round(number(color.r) * 255);
+            const g = Math.round(number(color.g) * 255);
+            const b = Math.round(number(color.b) * 255);
+            const a = number(color.a, 1);
+
+            return `rgba(${r},${g},${b},${a})`;
+        }
+
+        if(
+            color.r !== undefined &&
+            color.g !== undefined &&
+            color.b !== undefined
+        ){
+
+            const r = Math.round(number(color.r) * 255);
+            const g = Math.round(number(color.g) * 255);
+            const b = Math.round(number(color.b) * 255);
+
+            return `rgb(${r},${g},${b})`;
+        }
+
+        return "";
+    }
+
+
+    function getTeamInkColor(team, index = 0){
+
+        if(team){
+
+            const candidates = [
+                team.color,
+                team.inkColor,
+                team.ink,
+                team.paintColor
+            ];
+
+            for(const value of candidates){
+
+                const result = normalizeInkColor(value);
+
+                if(result){
+                    return result;
+                }
+            }
+        }
+
+        /*
+         * Fallback.
+         * 実際のHoragai Bayデータにcolorが存在する場合は
+         * 上の処理が優先される。
+         */
+        const fallback = [
+            "#c9ff00",
+            "#ff4fa3",
+            "#36d8ff",
+            "#ff8a3d"
+        ];
+
+        return fallback[index % fallback.length];
+    }
+
+
+    function getInkTextColor(background){
+
+        if(!background){
+            return "#ffffff";
+        }
+
+        /*
+         * CSS変数等が入っている場合は白文字を使用。
+         */
+        if(background.startsWith("var(")){
+            return "#ffffff";
+        }
+
+        return "#ffffff";
+    }
+
+
+    /* =====================================================
+       BATTLE ROW
+    ===================================================== */
+
+    function createBattleRow(battle){
+
+        const resultClass = getResultClass(
+            battle.judgement
+        );
+
+        const resultText = getResultText(
+            battle.judgement
+        );
+
+        const ruleName = safeString(
             battle.rule &&
-            battle.rule.name
-                ? battle.rule.name
-                : "ルール不明";
+            battle.rule.name,
+            "ルール不明"
+        );
 
-
-        const stageName =
+        const stageName = safeString(
             battle.stage &&
-            battle.stage.name
-                ? battle.stage.name
-                : "ステージ不明";
+            battle.stage.name,
+            "ステージ不明"
+        );
 
+        const weaponName = getWeaponName(
+            getMyPlayer(battle)
+        );
 
-        const player =
-            battle.player || {};
+        const stageImage = imageURL(
+            battle.stage &&
+            battle.stage.image
+        );
 
+        const weaponImage = getWeaponImage(
+            getMyPlayer(battle)
+        );
 
-        const weapon =
-            player.weapon || {};
+        const time = formatPlayedTime(
+            battle.playedTime
+        );
 
+        const tricolor = battle.isTricolor;
 
-        const weaponImage =
-            getWeaponImage(
-                weapon
-            );
-
-
-        const weaponHTML =
-            weaponImage
-                ? `
-                    <img
-                        class="battle-row-weapon-image"
-                        src="${escapeHTML(weaponImage)}"
-                        alt=""
-                        loading="lazy"
-                    >
-                `
-                : `
-                    <span class="material-symbols-rounded">
-                        construction
-                    </span>
-                `;
-
-
-        const tricolorBadge =
-            battle.isTricolor
-                ? `
-                    <span class="battle-row-badge">
-                        トリカラ
-                    </span>
-                `
-                : "";
-
-
-        const row =
-            document.createElement("button");
-
+        const row = document.createElement("button");
 
         row.type = "button";
+        row.className = `battle-row ${resultClass}`;
 
-        row.className =
-            "battle-row " +
-            "battle-row-" +
-            result;
-
-
-        row.dataset.battleId =
-            safeString(battle.id);
-
+        row.dataset.battleId = safeString(
+            battle.id
+        );
 
         row.innerHTML = `
 
-            <span class="battle-row-result">
-                <span class="battle-result-badge ${result}">
+            <div class="battle-row-result">
+                <span class="battle-result-mark">
                     ${escapeHTML(resultText)}
                 </span>
 
-                <span class="battle-row-time">
-                    ${escapeHTML(
-                        formatPlayedTime(
-                            battle.playedTime
-                        )
-                    )}
-                </span>
-            </span>
+                ${
+                    tricolor
+                        ? `<span class="battle-tricolor-label">トリカラ</span>`
+                        : ""
+                }
+            </div>
 
+            <div class="battle-row-main">
 
-            <span class="battle-row-rule">
-                <span class="battle-row-rule-name">
-                    ${escapeHTML(ruleName)}
-                </span>
+                <div class="battle-row-stage">
 
-                ${tricolorBadge}
-            </span>
+                    ${
+                        stageImage
+                            ? `
+                            <img
+                                class="battle-row-stage-image"
+                                src="${escapeHTML(stageImage)}"
+                                alt=""
+                            >
+                            `
+                            : ""
+                    }
 
+                    <div class="battle-row-stage-text">
+                        <strong>
+                            ${escapeHTML(stageName)}
+                        </strong>
 
-            <span class="battle-row-stage">
-                ${escapeHTML(stageName)}
-            </span>
+                        <span>
+                            ${escapeHTML(ruleName)}
+                        </span>
+                    </div>
 
+                </div>
 
-            <span class="battle-row-weapon">
-                ${weaponHTML}
+                <div class="battle-row-weapon">
 
-                <span class="battle-row-weapon-name">
-                    ${escapeHTML(
-                        weapon.name || "—"
-                    )}
-                </span>
-            </span>
+                    ${
+                        weaponImage
+                            ? `
+                            <img
+                                src="${escapeHTML(weaponImage)}"
+                                alt=""
+                            >
+                            `
+                            : ""
+                    }
+
+                    <span>
+                        ${escapeHTML(weaponName)}
+                    </span>
+
+                </div>
+
+            </div>
+
+            <div class="battle-row-meta">
+                ${escapeHTML(time)}
+            </div>
 
         `;
 
+        row.addEventListener("click", () => {
 
-        row.addEventListener(
-            "click",
-            function () {
+            const event = new CustomEvent(
+                "openBattleDetail",
+                {
+                    detail: {
+                        battleId: battle.id
+                    }
+                }
+            );
 
-                const battleId =
-                    row.dataset.battleId;
-
-
-                document.dispatchEvent(
-                    new CustomEvent(
-                        "openBattleDetail",
-                        {
-                            detail: {
-                                battleId:
-                                    battleId
-                            }
-                        }
-                    )
-                );
-
-            }
-        );
-
+            document.dispatchEvent(event);
+        });
 
         return row;
     }
 
 
-    // ========================================
-    // Empty List
-    // ========================================
+    /* =====================================================
+       EMPTY
+    ===================================================== */
 
-    function renderEmptyList() {
+    function renderEmptyList(){
 
-        const container =
-            getBattleListElement();
+        const list = document.getElementById(
+            "battleList"
+        );
 
-
-        if (!container) {
+        if(!list){
             return;
         }
 
-
-        container.innerHTML = `
+        list.innerHTML = `
 
             <div class="battle-empty">
 
@@ -543,19 +671,266 @@
                     sports_esports
                 </span>
 
-                <h2>
-                    バトル履歴がありません
-                </h2>
+                <h3>
+                    まだバトル記録がありません
+                </h3>
 
                 <p>
-                    ホラガイベイからJSONまたはZIPを
-                    インポートしてください。
+                    ホラガイベイのJSONデータを
+                    読み込んでください。
                 </p>
 
                 <button
                     type="button"
-                    class="primary-button"
-                    id="battleEmptyImportButton"
+                    data-action="import"
+                >
+                    データを読み込む
+                </button>
+
+            </div>
+
+        `;
+    }
+
+
+    /* =====================================================
+       SUMMARY
+    ===================================================== */
+
+    function updateSummary(battles){
+
+        const total = battles.length;
+
+        const wins = battles.filter(
+            battle =>
+                getResultClass(battle.judgement) === "win"
+        ).length;
+
+        const loses = battles.filter(
+            battle =>
+                getResultClass(battle.judgement) === "lose"
+        ).length;
+
+        const rate =
+            wins + loses > 0
+                ? ((wins / (wins + loses)) * 100).toFixed(1)
+                : "0.0";
+
+        const winElement =
+            document.getElementById("battleWinRate");
+
+        const winsElement =
+            document.getElementById("battleWins");
+
+        const losesElement =
+            document.getElementById("battleLoses");
+
+        const totalElement =
+            document.getElementById("battleTotal");
+
+        if(winElement){
+            winElement.textContent =
+                `${rate}%`;
+        }
+
+        if(winsElement){
+            winsElement.textContent =
+                String(wins);
+        }
+
+        if(losesElement){
+            losesElement.textContent =
+                String(loses);
+        }
+
+        if(totalElement){
+            totalElement.textContent =
+                String(total);
+        }
+    }
+
+
+    /* =====================================================
+       LIST
+    ===================================================== */
+
+    function renderList(battles = state.battles){
+
+        const list =
+            document.getElementById("battleList");
+
+        if(!list){
+            return;
+        }
+
+        if(!battles.length){
+
+            renderEmptyList();
+            updateSummary([]);
+
+            return;
+        }
+
+        list.innerHTML = "";
+
+        battles.forEach(battle => {
+
+            list.appendChild(
+                createBattleRow(battle)
+            );
+
+        });
+
+        updateSummary(battles);
+    }
+
+
+    /* =====================================================
+       PLAYER STATS
+    ===================================================== */
+
+    function createPlayerStats(player){
+
+        const result =
+            getPlayerResult(player);
+
+        const paint =
+            getPlayerPaint(player);
+
+        return `
+
+            <div class="result-player-stats">
+
+                <span>
+                    <b>${result.kill}</b>K
+                </span>
+
+                <span>
+                    <b>${result.assist}</b>A
+                </span>
+
+                <span>
+                    <b>${result.death}</b>D
+                </span>
+
+                <span>
+                    <b>${result.special}</b>SP
+                </span>
+
+                <span class="paint-stat">
+                    <b>${formatNumber(paint)}</b>p
+                </span>
+
+            </div>
+
+        `;
+    }
+
+
+    /* =====================================================
+       PLAYER CARD
+    ===================================================== */
+
+    function createPlayerCard(
+        player,
+        teamColor,
+        isMine = false
+    ){
+
+        const name =
+            getPlayerName(player);
+
+        const title =
+            getPlayerTitle(player);
+
+        const weapon =
+            getWeaponName(player);
+
+        const weaponImage =
+            getWeaponImage(
+                player.weapon
+            );
+
+        const specialImage =
+            getSpecialImage(
+                player.weapon
+            );
+
+        const specialName =
+            getSpecialName(player);
+
+        const subName =
+            getSubName(player);
+
+        const playerId =
+            safeString(
+                player.id ||
+                player.nameId ||
+                name
+            );
+
+        return `
+
+            <button
+                type="button"
+                class="
+                    result-player
+                    ${isMine ? "is-me" : ""}
+                "
+                data-player-id="${escapeHTML(playerId)}"
+                style="
+                    --player-ink:${escapeHTML(teamColor)};
+                "
+            >
+
+                <div class="result-player-color"></div>
+
+                <div class="result-player-identity">
+
+                    <div class="result-player-name-line">
+
+                        ${
+                            isMine
+                                ? `
+                                <span class="result-me-label">
+                                    YOU
+                                </span>
+                                `
+                                : ""
+                        }
+
+                        <strong class="result-player-name">
+                            ${escapeHTML(name)}
+                        </strong>
+
+                    </div>
+
+                    ${
+                        title
+                            ? `
+                            <span class="result-player-title">
+                                ${escapeHTML(title)}
+                            </span>
+                            `
+                            : ""
+                    }
+
+                    <span class="result-player-weapon-name">
+                        ${escapeHTML(weapon)}
+                    </span>
+
+                </div>
+
+                <div class="result-player-weapon">
+
+                    ${
+                        weaponImage
+                            ? `
+                            <img
+                                src="${escapeHTML(weaponImage)}"
+                                alt="${escapeHTML(weapon)}"
+                            >
+ImportButton"
                 >
                     <span class="material-symbols-rounded">
                         upload_file
