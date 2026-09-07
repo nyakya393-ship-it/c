@@ -1,491 +1,1009 @@
 /* =========================================================
-   importer.js
-   Horagai Bay Data Importer
-========================================================= */
+   InkBoard
+   js/importer.js
+   ========================================================= */
 
-(() => {
+(function () {
+
     "use strict";
 
 
-    /* =====================================================
-       CONSTANTS
-    ===================================================== */
+    /* =======================================================
+       STATE
+    ======================================================= */
 
-    const JSON_EXTENSIONS = [
-        ".json"
-    ];
+    const ImporterState = {
 
-    const ZIP_EXTENSIONS = [
-        ".zip"
-    ];
+        initialized: false,
 
+        importing: false
 
-    /* =====================================================
-       DOM
-    ===================================================== */
-
-    let fileInput = null;
-    let importButton = null;
-    let emptyImportButton = null;
+    };
 
 
-    /* =====================================================
-       INITIALIZE DOM
-    ===================================================== */
-
-    function cacheDOM() {
-
-        fileInput =
-            document.getElementById("fileInput");
-
-        importButton =
-            document.getElementById("importButton");
-
-        emptyImportButton =
-            document.getElementById(
-                "emptyImportButton"
-            );
-    }
-
-
-    /* =====================================================
-       OPEN FILE PICKER
-    ===================================================== */
-
-    function openFilePicker() {
-
-        if (!fileInput) {
-            return;
-        }
-
-        fileInput.value = "";
-
-        fileInput.click();
-    }
-
-
-    /* =====================================================
-       FILE EXTENSION
-    ===================================================== */
+    /* =======================================================
+       UTILITY
+    ======================================================= */
 
     function getExtension(fileName) {
 
-        const name =
-            String(fileName || "")
-                .toLowerCase();
-
-        const lastDot =
-            name.lastIndexOf(".");
-
-        if (lastDot === -1) {
+        if (!fileName) {
             return "";
         }
 
-        return name.slice(lastDot);
+        const name =
+            String(fileName).toLowerCase();
+
+        const index =
+            name.lastIndexOf(".");
+
+        if (index === -1) {
+            return "";
+        }
+
+        return name.slice(index + 1);
+
     }
 
 
-    /* =====================================================
-       FILE TYPE
-    ===================================================== */
-
     function getFileType(file) {
+
+        if (!file) {
+            return null;
+        }
 
         const extension =
             getExtension(file.name);
 
-        if (
-            JSON_EXTENSIONS.includes(
-                extension
-            )
-        ) {
+        if (extension === "json") {
             return "json";
         }
 
-        if (
-            ZIP_EXTENSIONS.includes(
-                extension
-            )
-        ) {
+        if (extension === "zip") {
             return "zip";
         }
 
-        if (
-            file.type ===
-            "application/json"
-        ) {
-            return "json";
-        }
+        return null;
 
-        if (
-            file.type ===
-            "application/zip" ||
-            file.type ===
-            "application/x-zip-compressed"
-        ) {
-            return "zip";
-        }
-
-        return "unknown";
     }
 
 
-    /* =====================================================
-       READ TEXT FILE
-    ===================================================== */
+    /* =======================================================
+       FILE READING
+    ======================================================= */
 
     function readTextFile(file) {
 
-        return new Promise(
-            (resolve, reject) => {
+        return new Promise(function (resolve, reject) {
 
-                const reader =
-                    new FileReader();
-
-                reader.onload = () => {
-
-                    resolve(
-                        reader.result
-                    );
-                };
-
-                reader.onerror = () => {
-
-                    reject(
-                        new Error(
-                            "JSONファイルを読み込めませんでした。"
-                        )
-                    );
-                };
-
-                reader.readAsText(
-                    file,
-                    "UTF-8"
-                );
-            }
-        );
-    }
+            const reader =
+                new FileReader();
 
 
-    /* =====================================================
-       PARSE JSON
-    ===================================================== */
-
-    function parseJSON(text) {
-
-        if (
-            typeof text !==
-            "string"
-        ) {
-            throw new Error(
-                "JSONデータが文字列ではありません。"
-            );
-        }
-
-        const trimmed =
-            text.trim();
-
-        if (!trimmed) {
-            throw new Error(
-                "JSONファイルが空です。"
-            );
-        }
-
-        try {
-
-            return JSON.parse(
-                trimmed
-            );
-
-        } catch (error) {
-
-            console.error(
-                "JSON parse error:",
-                error
-            );
-
-            throw new Error(
-                "JSONの形式を読み取れませんでした。"
-            );
-        }
-    }
-
-
-    /* =====================================================
-       CHECK HORAGAI BAY DATA
-    ===================================================== */
-
-    function isHoragaiBayData(data) {
-
-        if (
-            !data ||
-            typeof data !== "object"
-        ) {
-            return false;
-        }
-
-        /*
-         * 今回確認したホラガイベイの
-         * バトルJSONでは、ルートに
-         * vsHistoryDetail が存在する。
-         */
-
-        if (
-            data.vsHistoryDetail &&
-            typeof data.vsHistoryDetail ===
-                "object"
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
-
-    /* =====================================================
-       IMPORT JSON
-    ===================================================== */
-
-    async function importJSONFile(file) {
-
-        const text =
-            await readTextFile(file);
-
-        const data =
-            parseJSON(text);
-
-        if (
-            !isHoragaiBayData(data)
-        ) {
-
-            throw new Error(
-                "ホラガイベイのバトルデータとして認識できませんでした。"
-            );
-        }
-
-        return {
-            type: "json",
-            fileName: file.name,
-            data
-        };
-    }
-
-
-    /* =====================================================
-       ZIP SUPPORT
-    ===================================================== */
-
-    async function importZIPFile(file) {
-
-        /*
-         * ZIPの実データ構造は、
-         * 実際のホラガイベイZIPを基準に
-         * parser側で扱う。
-         *
-         * ここではZIPファイルそのものを
-         * ArrayBufferとして取得し、
-         * parser.jsへ渡せる状態にする。
-         */
-
-        const buffer =
-            await readFileAsArrayBuffer(
-                file
-            );
-
-        return {
-            type: "zip",
-            fileName: file.name,
-            buffer
-        };
-    }
-
-
-    /* =====================================================
-       READ ARRAY BUFFER
-    ===================================================== */
-
-    function readFileAsArrayBuffer(file) {
-
-        return new Promise(
-            (resolve, reject) => {
-
-                const reader =
-                    new FileReader();
-
-                reader.onload = () => {
+            reader.onload =
+                function () {
 
                     resolve(
-                        reader.result
+                        String(reader.result || "")
                     );
+
                 };
 
-                reader.onerror = () => {
+
+            reader.onerror =
+                function () {
 
                     reject(
                         new Error(
                             "ファイルを読み込めませんでした。"
                         )
                     );
+
                 };
 
-                reader.readAsArrayBuffer(
-                    file
-                );
-            }
-        );
+
+            reader.readAsText(
+                file,
+                "UTF-8"
+            );
+
+        });
+
     }
 
 
-    /* =====================================================
-       IMPORT DISPATCH
-    ===================================================== */
+    function readFileAsArrayBuffer(file) {
 
-    async function importFile(file) {
+        return new Promise(function (resolve, reject) {
+
+            const reader =
+                new FileReader();
+
+
+            reader.onload =
+                function () {
+
+                    resolve(
+                        reader.result
+                    );
+
+                };
+
+
+            reader.onerror =
+                function () {
+
+                    reject(
+                        new Error(
+                            "ZIPファイルを読み込めませんでした。"
+                        )
+                    );
+
+                };
+
+
+            reader.readAsArrayBuffer(file);
+
+        });
+
+    }
+
+
+    /* =======================================================
+       JSON
+    ======================================================= */
+
+    function parseJSON(text) {
+
+        if (
+            text === null ||
+            text === undefined ||
+            String(text).trim() === ""
+        ) {
+
+            throw new Error(
+                "JSONファイルが空です。"
+            );
+
+        }
+
+
+        try {
+
+            return JSON.parse(text);
+
+        } catch (error) {
+
+            throw new Error(
+                "JSONを解析できませんでした。"
+            );
+
+        }
+
+    }
+
+
+    /* =======================================================
+       HORAGAI BAY CHECK
+    ======================================================= */
+
+    function isHoragaiBayData(data) {
+
+        if (!data || typeof data !== "object") {
+            return false;
+        }
+
+
+        /*
+         * ホラガイベイのバトルデータ
+         */
+
+        if (data.vsHistoryDetail) {
+            return true;
+        }
+
+
+        /*
+         * Parser側で扱える形式も許可
+         */
+
+        if (Array.isArray(data)) {
+            return data.length > 0;
+        }
+
+
+        if (Array.isArray(data.battles)) {
+            return true;
+        }
+
+
+        if (Array.isArray(data.records)) {
+            return true;
+        }
+
+
+        if (Array.isArray(data.vsHistoryDetails)) {
+            return true;
+        }
+
+
+        if (Array.isArray(data.historyDetails)) {
+            return true;
+        }
+
+
+        return false;
+
+    }
+
+
+    /* =======================================================
+       JSON IMPORT
+    ======================================================= */
+
+    async function importJSONFile(file) {
 
         if (!file) {
-            return null;
+
+            throw new Error(
+                "ファイルが選択されていません。"
+            );
+
         }
+
+
+        const text =
+            await readTextFile(file);
+
+
+        const data =
+            parseJSON(text);
+
+
+        if (!isHoragaiBayData(data)) {
+
+            throw new Error(
+                "対応していないJSONデータです。"
+            );
+
+        }
+
+
+        return {
+
+            type: "json",
+
+            fileName:
+                file.name || "data.json",
+
+            data: data
+
+        };
+
+    }
+
+
+    /* =======================================================
+       ZIP IMPORT
+    ======================================================= */
+
+    async function importZIPFile(file) {
+
+        if (!file) {
+
+            throw new Error(
+                "ZIPファイルが選択されていません。"
+            );
+
+        }
+
+
+        const buffer =
+            await readFileAsArrayBuffer(file);
+
+
+        return {
+
+            type: "zip",
+
+            fileName:
+                file.name || "data.zip",
+
+            buffer: buffer
+
+        };
+
+    }
+
+
+    /* =======================================================
+       IMPORT FILE
+    ======================================================= */
+
+    async function importFile(file) {
 
         const type =
             getFileType(file);
 
-        switch (type) {
 
-            case "json":
+        if (!type) {
 
-                return await importJSONFile(
-                    file
-                );
+            throw new Error(
+                "JSONまたはZIPファイルを選択してください。"
+            );
 
-            case "zip":
-
-                return await importZIPFile(
-                    file
-                );
-
-            default:
-
-                throw new Error(
-                    "対応していないファイル形式です。JSONまたはZIPを選択してください。"
-                );
         }
+
+
+        if (type === "json") {
+
+            return await importJSONFile(file);
+
+        }
+
+
+        if (type === "zip") {
+
+            return await importZIPFile(file);
+
+        }
+
+
+        throw new Error(
+            "対応していないファイル形式です。"
+        );
+
     }
 
 
-    /* =====================================================
-       SEND TO PARSER
-    ===================================================== */
+    /* =======================================================
+       PARSER
+    ======================================================= */
 
-    async function processImportedFile(
-        importedFile
-    ) {
+    async function processImportedFile(importedFile) {
 
         if (!importedFile) {
-            return;
+
+            throw new Error(
+                "インポートデータがありません。"
+            );
+
         }
+
+
+        if (
+            !window.Parser ||
+            typeof window.Parser.parseImport !== "function"
+        ) {
+
+            throw new Error(
+                "Parserが読み込まれていません。"
+            );
+
+        }
+
+
+        if (
+            !window.Storage ||
+            typeof window.Storage.importData !== "function"
+        ) {
+
+            throw new Error(
+                "Storageが読み込まれていません。"
+            );
+
+        }
+
 
         /*
-         * parser.js が読み込まれていれば
-         * 実際のデータ解析を依頼する。
+         * Parser
          */
 
-        if (
-            typeof window.Parser !==
-                "undefined" &&
-            typeof window.Parser.parseImport !==
-                "function"
-        ) {
-
-            throw new Error(
-                "データ解析機能が読み込まれていません。"
-            );
-        }
-
-        if (
-            typeof window.Parser ===
-                "undefined"
-        ) {
-
-            throw new Error(
-                "parser.js が読み込まれていません。"
-            );
-        }
-
-        const parsed =
+        const parsedData =
             await window.Parser.parseImport(
                 importedFile
             );
 
-        /*
-         * parser.jsの結果を
-         * storage.jsへ保存する。
-         */
 
         if (
-            parsed &&
-            typeof window.Storage !==
-                "undefined" &&
-            typeof window.Storage.importData ===
-                "function"
+            !parsedData ||
+            !Array.isArray(parsedData.records)
         ) {
 
-            return await window.Storage.importData(
-                parsed
+            throw new Error(
+                "バトルデータを解析できませんでした。"
             );
+
         }
 
-        return parsed;
+
+        if (parsedData.records.length === 0) {
+
+            throw new Error(
+                "バトルデータが見つかりませんでした。"
+            );
+
+        }
+
+
+        /*
+         * IndexedDBへ保存
+         */
+
+        const storageResult =
+            await window.Storage.importData(
+                parsedData
+            );
+
+
+        return {
+
+            parsed: parsedData,
+
+            storage: storageResult
+
+        };
+
     }
 
 
-    /* =====================================================
-       HANDLE FILE
-    ===================================================== */
+    /* =======================================================
+       TOAST HELPER
+    ======================================================= */
 
-    async function handleFile(file) {
+    function showToast(message) {
 
-        if (!file) {
+        if (
+            window.BattleUI &&
+            typeof window.BattleUI.showToast === "function"
+        ) {
+
+            window.BattleUI.showToast(
+                message
+            );
+
+            return;
+
+        }
+
+
+        const toast =
+            document.getElementById("toast");
+
+
+        if (!toast) {
             return;
         }
 
+
+        toast.textContent =
+            String(message);
+
+
+        toast.hidden = false;
+
+
+        clearTimeout(
+            showToast.timer
+        );
+
+
+        showToast.timer =
+            setTimeout(
+                function () {
+
+                    toast.hidden = true;
+
+                },
+                2800
+            );
+
+    }
+
+
+    /* =======================================================
+       LOADING
+    ======================================================= */
+
+    function setLoading(
+        visible,
+        message
+    ) {
+
+        if (
+            window.BattleUI &&
+            typeof window.BattleUI.setLoading === "function"
+        ) {
+
+            window.BattleUI.setLoading(
+                visible,
+                message
+            );
+
+            return;
+
+        }
+
+
+        const loading =
+            document.getElementById("loading");
+
+
+        const loadingText =
+            document.getElementById("loadingText");
+
+
+        if (loading) {
+
+            loading.hidden =
+                !visible;
+
+        }
+
+
+        if (
+            loadingText &&
+            message
+        ) {
+
+            loadingText.textContent =
+                message;
+
+        }
+
+    }
+
+
+    /* =======================================================
+       EVENTS
+    ======================================================= */
+
+    function dispatchImportCompleted(result) {
+
+        document.dispatchEvent(
+            new CustomEvent(
+                "importCompleted",
+                {
+                    detail: result
+                }
+            )
+        );
+
+    }
+
+
+    function dispatchImportError(error) {
+
+        document.dispatchEvent(
+            new CustomEvent(
+                "importError",
+                {
+                    detail: {
+                        error: error
+                    }
+                }
+            )
+        );
+
+    }
+
+
+    /* =======================================================
+       HANDLE FILE
+    ======================================================= */
+
+    async function handleFile(file) {
+
+        if (ImporterState.importing) {
+
+            return null;
+
+        }
+
+
+        if (!file) {
+
+            return null;
+
+        }
+
+
+        ImporterState.importing =
+            true;
+
+
         try {
 
-            showLoading();
+            setLoading(
+                true,
+                "ファイルを読み込んでいます..."
+            );
+
+
+            /*
+             * ファイル読み込み
+             */
 
             const importedFile =
                 await importFile(file);
+
+
+            setLoading(
+                true,
+                "バトルデータを解析しています..."
+            );
+
+
+            /*
+             * Parser + Storage
+             */
 
             const result =
                 await processImportedFile(
                     importedFile
                 );
 
-            console.log(
-                "Import completed:",
-                result
-            );
 
-            showToast(
-                "データを読み込みました"
-            );
+            const storage =
+                result.storage || {};
+
+
+            const total =
+                Number(storage.total || 0);
+
+
+            const added =
+                Number(storage.added || 0);
+
+
+            const updated =
+                Number(storage.updated || 0);
+
+
+            const skipped =
+                Number(storage.skipped || 0);
+
 
             /*
-             * インポート後に一覧を再描画。
+             * 表示更新
              */
 
             if (
-                typeof window.BattleUI !==
-                    "undefined" &&
-                typeof window.BattleUI.render ===
-                    "function"
+                window.Battle &&
+                typeof window.Battle.refresh === "function"
+            ) {
+
+                await window.Battle.refresh();
+
+            }
+
+
+            if (
+                window.BattleUI &&
+                typeof window.BattleUI.render === "function"
             ) {
 
                 await window.BattleUI.render();
+
             }
+
+
+            /*
+             * 完了イベント
+             */
+
+            dispatchImportCompleted(
+                result
+            );
+
+
+            /*
+             * メッセージ
+             */
+
+            let message =
+                total +
+                "件のバトルデータを読み込みました。";
+
+
+            if (added > 0 && updated > 0) {
+
+                message =
+                    added +
+                    "件追加、" +
+                    updated +
+                    "件更新しました。";
+
+            } else if (added > 0) {
+
+                message =
+                    added +
+                    "件のバトルを追加しました。";
+
+            } else if (updated > 0) {
+
+                message =
+                    updated +
+                    "件のバトルを更新しました。";
+
+            } else if (skipped > 0) {
+
+                message =
+                    skipped +
+                    "件は既に保存されています。";
+
+            }
+
+
+            showToast(
+                message
+            );
+
+
+            return result;
 
         } catch (error) {
 
             console.error(
+                "InkBoard import error:",
+                error
+            );
+
+
+            dispatchImportError(
+                error
+            );
+
+
+            const message =
+                error &&
+                error.message
+                    ? error.message
+                    : "インポートに失敗しました。";
+
+
+            showToast(
+                message
+            );
+
+
+            throw error;
+
+        } finally {
+
+            setLoading(
+                false
+            );
+
+
+            ImporterState.importing =
+                false;
+
+        }
+
+    }
+
+
+    /* =======================================================
+       FILE INPUT
+    ======================================================= */
+
+    function openFilePicker() {
+
+        const input =
+            document.getElementById(
+                "fileInput"
+            );
+
+
+        if (!input) {
+
+            console.warn(
+                "fileInputが見つかりません。"
+            );
+
+            return;
+
+        }
+
+
+        input.value = "";
+
+        input.click();
+
+    }
+
+
+    /* =======================================================
+       INITIALIZE
+    ======================================================= */
+
+    function init() {
+
+        if (ImporterState.initialized) {
+            return;
+        }
+
+
+        const input =
+            document.getElementById(
+                "fileInput"
+            );
+
+
+        /*
+         * ファイル選択
+         */
+
+        if (input) {
+
+            input.addEventListener(
+                "change",
+                async function (event) {
+
+                    const files =
+                        event.target.files;
+
+
+                    if (
+                        !files ||
+                        files.length === 0
+                    ) {
+
+                        return;
+
+                    }
+
+
+                    const file =
+                        files[0];
+
+
+                    try {
+
+                        await handleFile(
+                            file
+                        );
+
+                    } catch (error) {
+
+                        /*
+                         * handleFile内ですでに
+                         * エラー表示しているため、
+                         * ここでは追加表示しない。
+                         */
+
+                        console.error(
+                            error
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        /*
+         * data-action="import"
+         */
+
+        document.addEventListener(
+            "click",
+            function (event) {
+
+                const button =
+                    event.target.closest(
+                        "[data-action='import']"
+                    );
+
+
+                if (!button) {
+                    return;
+                }
+
+
+                /*
+                 * ファイルinput自身のクリックは除外
+                 */
+
+                if (
+                    event.target === input
+                ) {
+
+                    return;
+
+                }
+
+
+                event.preventDefault();
+
+
+                openFilePicker();
+
+            }
+        );
+
+
+        ImporterState.initialized =
+            true;
+
+    }
+
+
+    /* =======================================================
+       DOM READY
+    ======================================================= */
+
+    if (
+        document.readyState === "loading"
+    ) {
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            init
+        );
+
+    } else {
+
+        init();
+
+    }
+
+
+    /* =======================================================
+       PUBLIC API
+    ======================================================= */
+
+    window.Importer = {
+
+        state:
+            ImporterState,
+
+        getExtension:
+            getExtension,
+
+        getFileType:
+            getFileType,
+
+        readTextFile:
+            readTextFile,
+
+        readFileAsArrayBuffer:
+            readFileAsArrayBuffer,
+
+        parseJSON:
+            parseJSON,
+
+        isHoragaiBayData:
+            isHoragaiBayData,
+
+        importJSONFile:
+            importJSONFile,
+
+        importZIPFile:
+            importZIPFile,
+
+        importFile:
+            importFile,
+
+        processImportedFile:
+            processImportedFile,
+
+        handleFile:
+            handleFile,
+
+        openFilePicker:
+            openFilePicker,
+
+        init:
+            init
+
+    };
+
+
+})();ror(
                 "Import failed:",
                 error
             );
