@@ -1,569 +1,607 @@
 // =========================
-// UI
+// UI System
 // InkBoard
-// User Interface Controller
 // =========================
 
 (function () {
-
     "use strict";
 
+    const UI = {
 
-    // ========================================
-    // State
-    // ========================================
+        initialized: false,
 
-    let currentFilter = "all";
+        elements: {
+            toast: null,
+            loading: null,
+            fileInput: null,
 
+            importButton: null,
+            exportButton: null,
+            deleteButton: null,
 
-    // ========================================
-    // Utility
-    // ========================================
+            backButton: null,
+            settingsButton: null
+        },
 
-    function get(id) {
+        // =========================
+        // DOM
+        // =========================
 
-        return document.getElementById(id);
+        cacheElements: function () {
 
-    }
+            this.elements.toast =
+                document.getElementById("toast");
 
+            this.elements.loading =
+                document.getElementById("loading");
 
-    function safeString(value, fallback = "") {
+            this.elements.fileInput =
+                document.getElementById("fileInput");
 
-        if (
-            value === null ||
-            value === undefined
-        ) {
-            return fallback;
-        }
-
-        return String(value);
-
-    }
-
-
-    // ========================================
-    // Toast
-    // ========================================
-
-    let toastTimer = null;
-
-
-    function showToast(
-        message,
-        type = "normal"
-    ) {
-
-        let toast =
-            get("toast");
-
-
-        if (!toast) {
-
-            toast =
-                document.createElement("div");
-
-
-            toast.id =
-                "toast";
-
-
-            toast.className =
-                "toast";
-
-
-            document.body.appendChild(
-                toast
-            );
-
-        }
-
-
-        toast.className =
-            "toast toast-" +
-            type;
-
-
-        toast.textContent =
-            safeString(message);
-
-
-        requestAnimationFrame(
-            function () {
-
-                toast.classList.add(
-                    "show"
+            this.elements.importButton =
+                document.querySelector(
+                    '[data-action="import"]'
                 );
 
+            this.elements.exportButton =
+                document.querySelector(
+                    '[data-action="export"]'
+                );
+
+            this.elements.deleteButton =
+                document.querySelector(
+                    '[data-action="delete-data"]'
+                );
+
+            this.elements.backButton =
+                document.querySelector(
+                    '[data-action="back"]'
+                );
+
+            this.elements.settingsButton =
+                document.querySelector(
+                    '[data-action="settings"]'
+                );
+        },
+
+        // =========================
+        // Toast
+        // =========================
+
+        showToast: function (message, duration) {
+
+            const toast = this.elements.toast;
+
+            if (!toast) {
+                return;
             }
-        );
 
+            toast.textContent = String(message || "");
 
-        if (toastTimer) {
+            toast.classList.add("show");
 
-            clearTimeout(
-                toastTimer
-            );
+            clearTimeout(this.toastTimer);
 
-        }
+            this.toastTimer = setTimeout(function () {
 
+                toast.classList.remove("show");
 
-        toastTimer =
-            setTimeout(
-                function () {
+            }, duration || 2200);
+        },
 
-                    toast.classList.remove(
-                        "show"
+        hideToast: function () {
+
+            const toast = this.elements.toast;
+
+            if (!toast) {
+                return;
+            }
+
+            toast.classList.remove("show");
+        },
+
+        // =========================
+        // Loading
+        // =========================
+
+        showLoading: function (message) {
+
+            const loading = this.elements.loading;
+
+            if (!loading) {
+                return;
+            }
+
+            const text =
+                loading.querySelector(
+                    ".loading-text"
+                );
+
+            if (text && message) {
+                text.textContent = message;
+            }
+
+            loading.classList.add("show");
+            loading.setAttribute("aria-hidden", "false");
+        },
+
+        hideLoading: function () {
+
+            const loading = this.elements.loading;
+
+            if (!loading) {
+                return;
+            }
+
+            loading.classList.remove("show");
+            loading.setAttribute("aria-hidden", "true");
+        },
+
+        // =========================
+        // Import
+        // =========================
+
+        openImport: function () {
+
+            if (
+                window.Importer &&
+                typeof window.Importer.openFilePicker === "function"
+            ) {
+                window.Importer.openFilePicker();
+                return;
+            }
+
+            const input = this.elements.fileInput;
+
+            if (input) {
+                input.value = "";
+                input.click();
+            }
+        },
+
+        // =========================
+        // Export
+        // =========================
+
+        exportData: async function () {
+
+            try {
+
+                this.showLoading("バックアップを作成中…");
+
+                if (
+                    !window.Storage ||
+                    typeof window.Storage.exportJSON !== "function"
+                ) {
+                    throw new Error(
+                        "Storage.exportJSON が見つかりません。"
                     );
+                }
 
-                },
-                2600
-            );
+                await window.Storage.exportJSON();
 
-    }
-
-
-    // ========================================
-    // Loading
-    // ========================================
-
-    function setLoading(
-        loading
-    ) {
-
-        document.body.classList.toggle(
-            "is-loading",
-            Boolean(loading)
-        );
-
-    }
-
-
-    // ========================================
-    // Import
-    // ========================================
-
-    function openFilePicker() {
-
-        const input =
-            get("fileInput");
-
-
-        if (!input) {
-
-            showToast(
-                "ファイル選択欄が見つかりません。",
-                "error"
-            );
-
-            return;
-        }
-
-
-        input.click();
-
-    }
-
-
-    // ========================================
-    // Export
-    // ========================================
-
-    async function exportData() {
-
-        if (
-            !window.Storage ||
-            !window.Storage.exportJSON
-        ) {
-
-            showToast(
-                "保存機能を利用できません。",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        try {
-
-            setLoading(true);
-
-
-            await window.Storage.exportJSON();
-
-
-            showToast(
-                "バックアップを書き出しました。",
-                "success"
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-
-
-            showToast(
-                error.message ||
-                "エクスポートに失敗しました。",
-                "error"
-            );
-
-
-        } finally {
-
-            setLoading(false);
-
-        }
-
-    }
-
-
-    // ========================================
-    // Delete All
-    // ========================================
-
-    async function deleteAllData() {
-
-        const confirmed =
-            window.confirm(
-                "保存されているバトル履歴をすべて削除します。\n\nこの操作は元に戻せません。\n\n本当に削除しますか？"
-            );
-
-
-        if (!confirmed) {
-            return;
-        }
-
-
-        try {
-
-            setLoading(true);
-
-
-            if (
-                !window.Storage ||
-                !window.Storage.clearBattles
-            ) {
-
-                throw new Error(
-                    "保存機能を利用できません。"
+                this.showToast(
+                    "バックアップを保存しました"
                 );
 
+            } catch (error) {
+
+                console.error(error);
+
+                this.showToast(
+                    "バックアップの作成に失敗しました"
+                );
+
+            } finally {
+
+                this.hideLoading();
+            }
+        },
+
+        // =========================
+        // Delete
+        // =========================
+
+        deleteData: async function () {
+
+            const confirmed =
+                window.confirm(
+                    "保存されているバトル履歴をすべて削除します。\n\nこの操作は元に戻せません。\n\n本当に削除しますか？"
+                );
+
+            if (!confirmed) {
+                return;
             }
 
+            try {
 
-            await window.Storage.clearBattles();
+                this.showLoading("データを削除中…");
 
+                if (
+                    !window.Storage ||
+                    typeof window.Storage.clearBattles !== "function"
+                ) {
+                    throw new Error(
+                        "Storage.clearBattles が見つかりません。"
+                    );
+                }
 
-            if (
-                window.Battle &&
-                window.Battle.refresh
-            ) {
+                await window.Storage.clearBattles();
 
-                await window.Battle.refresh();
+                if (
+                    window.Battle &&
+                    typeof window.Battle.refresh === "function"
+                ) {
+                    await window.Battle.refresh();
+                }
 
+                this.showToast(
+                    "バトル履歴を削除しました"
+                );
+
+            } catch (error) {
+
+                console.error(error);
+
+                this.showToast(
+                    "データの削除に失敗しました"
+                );
+
+            } finally {
+
+                this.hideLoading();
             }
+        },
 
+        // =========================
+        // Navigation
+        // =========================
 
-            showToast(
-                "バトル履歴を削除しました。",
-                "success"
-            );
-
+        goBack: function () {
 
             if (
                 window.App &&
-                window.App.openBattlePage
+                typeof window.App.goBack === "function"
             ) {
-
-                window.App.openBattlePage();
-
+                window.App.goBack();
             }
+        },
 
+        openSettings: function () {
 
-        } catch (error) {
+            if (
+                window.App &&
+                typeof window.App.openSettings === "function"
+            ) {
+                window.App.openSettings();
+            }
+        },
 
-            console.error(
-                error
-            );
+        openBattle: function () {
 
+            if (
+                window.App &&
+                typeof window.App.openBattlePage === "function"
+            ) {
+                window.App.openBattlePage();
+            }
+        },
 
-            showToast(
-                error.message ||
-                "削除に失敗しました。",
-                "error"
-            );
+        openSalmon: function () {
 
+            if (
+                window.App &&
+                typeof window.App.openSalmonPage === "function"
+            ) {
+                window.App.openSalmonPage();
+            }
+        },
 
-        } finally {
+        openStatistics: function () {
 
-            setLoading(false);
+            if (
+                window.App &&
+                typeof window.App.openStatisticsPage === "function"
+            ) {
+                window.App.openStatisticsPage();
+            }
+        },
 
-        }
+        // =========================
+        // Event Delegation
+        // =========================
 
-    }
+        handleAction: function (action, element) {
 
+            switch (action) {
 
-    // ========================================
-    // Filter Buttons
-    // ========================================
+                case "import":
+                    this.openImport();
+                    break;
 
-    function setupFilters() {
+                case "export":
+                    this.exportData();
+                    break;
 
-        const filters =
-            document.querySelectorAll(
-                "[data-battle-filter]"
-            );
+                case "delete-data":
+                    this.deleteData();
+                    break;
 
+                case "back":
+                    this.goBack();
+                    break;
 
-        filters.forEach(
-            function (button) {
+                case "settings":
+                    this.openSettings();
+                    break;
 
-                button.addEventListener(
-                    "click",
-                    async function () {
+                case "battle":
+                    this.openBattle();
+                    break;
 
-                        const filter =
-                            safeString(
-                                button.dataset
-                                    .battleFilter
-                            ) || "all";
+                case "salmon":
+                    this.openSalmon();
+                    break;
 
+                case "statistics":
+                    this.openStatistics();
+                    break;
 
-                        currentFilter =
-                            filter;
+                default:
+                    break;
+            }
+        },
 
+        bindActions: function () {
 
-                        filters.forEach(
-                            function (item) {
+            document.addEventListener(
+                "click",
+                (event) => {
 
-                                item.classList.toggle(
-                                    "active",
-                                    item === button
-                                );
-
-                            }
+                    const target =
+                        event.target.closest(
+                            "[data-action]"
                         );
 
-
-                        try {
-
-                            if (
-                                window.Battle &&
-                                window.Battle.renderFiltered
-                            ) {
-
-                                await window.Battle
-                                    .renderFiltered(
-                                        filter
-                                    );
-
-                            }
-
-                        } catch (error) {
-
-                            console.error(
-                                error
-                            );
-
-
-                            showToast(
-                                "フィルター処理に失敗しました。",
-                                "error"
-                            );
-
-                        }
-
+                    if (!target) {
+                        return;
                     }
-                );
 
-            }
-        );
+                    const action =
+                        target.getAttribute(
+                            "data-action"
+                        );
 
-    }
-
-
-    // ========================================
-    // Import Buttons
-    // ========================================
-
-    function setupImportButtons() {
-
-        const buttons =
-            document.querySelectorAll(
-                "[data-action='import']"
-            );
-
-
-        buttons.forEach(
-            function (button) {
-
-                button.addEventListener(
-                    "click",
-                    function () {
-
-                        openFilePicker();
-
+                    if (!action) {
+                        return;
                     }
-                );
 
+                    this.handleAction(
+                        action,
+                        target
+                    );
+                }
+            );
+        },
+
+        // =========================
+        // Import Events
+        // =========================
+
+        bindImportEvents: function () {
+
+            document.addEventListener(
+                "importCompleted",
+                (event) => {
+
+                    const detail =
+                        event.detail || {};
+
+                    const count =
+                        Number(detail.count || 0);
+
+                    if (count > 0) {
+
+                        this.showToast(
+                            count +
+                            "件のバトルデータを読み込みました"
+                        );
+
+                    } else {
+
+                        this.showToast(
+                            "バトルデータを読み込みました"
+                        );
+                    }
+
+                    if (
+                        window.Battle &&
+                        typeof window.Battle.refresh === "function"
+                    ) {
+                        window.Battle.refresh();
+                    }
+                }
+            );
+
+            document.addEventListener(
+                "importError",
+                (event) => {
+
+                    const detail =
+                        event.detail || {};
+
+                    const message =
+                        detail.message ||
+                        "インポートに失敗しました";
+
+                    this.showToast(message);
+                }
+            );
+        },
+
+        // =========================
+        // Keyboard
+        // =========================
+
+        bindKeyboard: function () {
+
+            document.addEventListener(
+                "keydown",
+                (event) => {
+
+                    if (event.key !== "Escape") {
+                        return;
+                    }
+
+                    const detailPage =
+                        document.getElementById(
+                            "battleDetailPage"
+                        );
+
+                    if (
+                        detailPage &&
+                        detailPage.classList.contains("active")
+                    ) {
+                        this.goBack();
+                    }
+                }
+            );
+        },
+
+        // =========================
+        // Page State
+        // =========================
+
+        updatePageState: function () {
+
+            if (!window.App) {
+                return;
             }
-        );
 
-    }
+            const currentPage =
+                window.App.state &&
+                window.App.state.currentPage;
 
+            if (!currentPage) {
+                return;
+            }
 
-    // ========================================
-    // Settings Buttons
-    // ========================================
-
-    function setupSettingsButtons() {
-
-        const exportButton =
-            get("exportButton");
-
-
-        if (exportButton) {
-
-            exportButton.addEventListener(
-                "click",
-                function () {
-
-                    exportData();
-
-                }
+            document.body.setAttribute(
+                "data-page",
+                currentPage
             );
+        },
 
-        }
+        // =========================
+        // Battle UI
+        // =========================
 
+        refreshBattleUI: async function () {
 
-        const deleteButton =
-            get("deleteAllButton");
+            if (
+                !window.Battle ||
+                typeof window.Battle.refresh !== "function"
+            ) {
+                return;
+            }
 
+            try {
 
-        if (deleteButton) {
+                await window.Battle.refresh();
 
-            deleteButton.addEventListener(
-                "click",
-                function () {
+            } catch (error) {
 
-                    deleteAllData();
+                console.error(
+                    "Battle UI refresh error:",
+                    error
+                );
+            }
+        },
 
+        // =========================
+        // Initial Render
+        // =========================
+
+        render: async function () {
+
+            this.updatePageState();
+
+            if (
+                window.BattleUI &&
+                typeof window.BattleUI.render === "function"
+            ) {
+
+                try {
+                    await window.BattleUI.render();
+                } catch (error) {
+                    console.error(error);
                 }
-            );
+            }
+        },
+
+        // =========================
+        // Initialization
+        // =========================
+
+        init: async function () {
+
+            if (this.initialized) {
+                return;
+            }
+
+            this.initialized = true;
+
+            this.cacheElements();
+
+            this.bindActions();
+
+            this.bindImportEvents();
+
+            this.bindKeyboard();
+
+            await this.render();
+        }
+    };
+
+    // =========================
+    // App Events
+    // =========================
+
+    document.addEventListener(
+        "appPageChanged",
+        function () {
+
+            UI.updatePageState();
 
         }
+    );
 
+    // =========================
+    // Public API
+    // =========================
 
-        const importButton =
-            get("settingsImportButton");
+    window.UI = UI;
 
+    // =========================
+    // DOM Ready
+    // =========================
 
-        if (importButton) {
+    if (document.readyState === "loading") {
 
-            importButton.addEventListener(
-                "click",
-                function () {
-
-                    openFilePicker();
-
-                }
-            );
-
-        }
-
-    }
-
-
-    // ========================================
-    // File Input
-    // ========================================
-
-    function setupFileInput() {
-
-        const input =
-            get("fileInput");
-
-
-        if (!input) {
-            return;
-        }
-
-
-        input.addEventListener(
-            "change",
+        document.addEventListener(
+            "DOMContentLoaded",
             function () {
-
-                if (
-                    !input.files ||
-                    input.files.length === 0
-                ) {
-                    return;
-                }
-
-
-                const file =
-                    input.files[0];
-
-
-                if (
-                    window.Importer &&
-                    window.Importer.handleFile
-                ) {
-
-                    window.Importer.handleFile(
-                        file
-                    );
-
-                } else {
-
-                    showToast(
-                        "インポート機能を利用できません。",
-                        "error"
-                    );
-
-                }
-
-
-                // 同じファイルをもう一度選べるようにする
-                input.value = "";
-
-            }
+                UI.init();
+            },
+            { once: true }
         );
 
+    } else {
+
+        UI.init();
     }
 
-
-    // ========================================
-    // Navigation
-    // ========================================
-
-    function setupNavigation() {
-
-        const buttons =
-            document.querySelectorAll(
-                "[data-page]"
-            );
-
-
-        buttons.forEach(
-            function (button) {
-
-                button.addEventListener(
-                    "click",
-                    function () {
-
-                        const page =
-                            safeString(
-                                button.dataset.page
-                            );
-
-
-                        if (!page) {
+})();(!page) {
                             return;
                         }
 
